@@ -24,9 +24,11 @@ module.exports = {
 
 <nav class="tabs" id="mtabs">
 <button class="tab" type="button" data-t="sv" aria-selected="true">Layanan</button>
+<button class="tab" type="button" data-t="rw" aria-selected="false">Riwayat</button>
 <button class="tab" type="button" data-t="dp" aria-selected="false">Deposit</button></nav>
 
 <div data-p="sv">
+<section class="box hide" id="recbox"><h2>Rekomendasi <span class="badge">Pilihan admin</span></h2><div id="reclist"></div></section>
 <section class="box"><label style="margin-top:0">Platform</label><div class="chips" id="plats"></div>
 <label for="cat">Kategori</label><select id="cat" disabled></select></section>
 
@@ -38,6 +40,9 @@ module.exports = {
 <p class="muted" style="margin-top:18px">Total bayar</p><div class="total" id="total">Rp 0</div>
 <div class="err" id="bmsg" role="status"></div><button type="submit" id="bgo" style="width:100%">Pesan</button></form>
 
+</div>
+
+<div data-p="rw" class="hide">
 <section class="box" id="ords"><div class="top"><h2>Pesanan saya</h2><button class="ghost" id="orf" type="button">Segarkan</button></div><div id="olist"></div></section>
 </div>
 
@@ -82,14 +87,15 @@ $('#af').onsubmit=async e=>{e.preventDefault();const go=$('#a_go');go.disabled=t
 
 function setMe(u){me=u;
  $('#auth').classList.toggle('hide',!!u);$('#app').classList.toggle('hide',!u);head();
- if(u){$('#uname').textContent=u.username;$('#ubal').textContent='Saldo '+rp(u.balance);loadOrders();if(!loaded)loadCatalog()}}
+ if(u){$('#uname').textContent=u.username;$('#ubal').textContent='Saldo '+rp(u.balance);if(!loaded)loadCatalog()}}
 async function loadMe(){try{const r=await fetch('/api/buyer/me');const d=await r.json();setMe(d.status?d:null)}catch{setMe(null)}}
 $('#bout').onclick=async()=>{try{await post('/api/buyer/logout')}catch{}location.reload()};
 
 /* ---------- Tab & Deposit ---------- */
 function tab(t){document.querySelectorAll('#app [data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));
  document.querySelectorAll('#mtabs .tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));
- if(t==='dp'){loadPay();loadDeposits();refreshBal()}}
+ if(t==='dp'){loadPay();loadDeposits();refreshBal()}
+ if(t==='rw')loadOrders()}
 document.querySelectorAll('#mtabs .tab').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 async function refreshBal(){try{const r=await fetch('/api/buyer/me');const d=await r.json();if(d.status)$('#ubal').textContent='Saldo '+rp(d.balance)}catch{}}
 function img2url(file,max,q){return new Promise((ok,no)=>{const u=URL.createObjectURL(file);const im=new Image();
@@ -153,26 +159,48 @@ function showPlats(){const cnt={};SV.forEach(x=>{const p=plat(x.category);cnt[p]
 function pickPlat(p){document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.textContent===p)));
  const cats=[...new Set(SV.filter(x=>plat(x.category)===p).map(x=>x.category))];
  const s=$('#cat');s.textContent='';cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.append(o)});s.disabled=false;showSvs()}
-function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');
- const list=SV.filter(x=>x.category===c).sort((a,b)=>(Number(a.price)||1e18)-(Number(b.price)||1e18));$('#cmsg').textContent=list.length+' layanan';
- list.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='svc';b.setAttribute('aria-pressed','false');
+function svcCard(x){const b=document.createElement('button');b.type='button';b.className='svc';b.setAttribute('aria-pressed','false');
   const t=document.createElement('b');t.textContent=x.name;const m=document.createElement('span');m.className='meta';
   const pr=document.createElement('span');pr.className='price';pr.textContent=rp(x.price)+' / 1000';
   const mn=document.createElement('span');mn.className='tag';mn.textContent='Min '+x.min;
   const mx=document.createElement('span');mx.className='tag';mx.textContent='Maks '+x.max;
   m.append(pr,mn,mx);b.append(t,m);
-  b.onclick=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};box.append(b)})}
+  b.onclick=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};return b}
+function showRec(ids){const box=$('#reclist');box.textContent='';
+ const list=ids.map(i=>SV.find(x=>x.id===i)).filter(Boolean);
+ $('#recbox').classList.toggle('hide',!list.length);
+ list.forEach(x=>box.append(svcCard(x)))}
+function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');
+ const list=SV.filter(x=>x.category===c).sort((a,b)=>(Number(a.price)||1e18)-(Number(b.price)||1e18));$('#cmsg').textContent=list.length+' layanan';
+ list.forEach(x=>box.append(svcCard(x)))}
+
 function choose(x){sel=x;$('#bf').classList.remove('hide');$('#bname').textContent=x.name;$('#binfo').textContent='Jumlah '+x.min+' sampai '+x.max;
  $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();loadStats(x);$('#bf').scrollIntoView({behavior:'smooth',block:'nearest'})}
 const SC=[['pending','Pending','#d97706'],['processing','Processing','#0284c7'],['success','Success','#16a34a'],['partial','Partial','#64748b'],['error','Error','#dc2626']];
 function statRow(label,color,text){const r=document.createElement('div');r.className='stat-row';const p=document.createElement('span');p.className='pill';p.style.background=color;p.textContent=label;const t=document.createElement('span');t.textContent=text;r.append(p,t);return r}
+function ago(t){if(!t)return'';const s=Math.max(0,(Date.now()-new Date(t).getTime())/1000);
+ if(s<60)return'BARU SAJA';const m=Math.floor(s/60);if(m<60)return m+' MENIT YANG LALU';
+ const h=Math.floor(m/60);if(h<24)return h+' JAM YANG LALU';return Math.floor(h/24)+' HARI YANG LALU'}
+const SL={pending:'Pending',processing:'Diproses',success:'Sukses',partial:'Sebagian',error:'Error'};
+function spSec(title){const s=document.createElement('div');s.className='sp-sec';const h=document.createElement('h3');h.className='sp-h';h.textContent=title;s.append(h);return s}
 async function loadStats(x){const box=$('#stats');box.textContent='';
  try{const r=await fetch('/api/buyer/stats/'+encodeURIComponent(x.id));const d=await r.json();
   if(!sel||sel.id!==x.id)return;box.textContent='';
-  if(!d.status||!d.total){const p=document.createElement('p');p.className='muted';p.style.marginTop='12px';p.textContent='Belum ada data pesanan untuk layanan ini.';box.append(p);return}
-  const h=document.createElement('p');h.style.cssText='font-weight:700;margin-top:14px';h.textContent='Statistik Pesanan';
-  box.append(h,statRow('Total Pesanan','#6b7fd7',d.total+' pesanan'));
-  SC.forEach(k=>{const c=d.counts[k[0]]||0;box.append(statRow(k[1],k[2],(+(c*100/d.total).toFixed(2))+'% ('+c+' pesanan)'))})}
+  if(!d.status){const p=document.createElement('p');p.className='muted';p.style.marginTop='12px';p.textContent=d.error||'Statistik gagal dimuat.';box.append(p);return}
+  const card=document.createElement('div');card.className='sp';const tot=d.total||0;
+  const s1=spSec('Rata-Rata:');const p1=document.createElement('p');p1.append('Jumlah Pesan Rata-Rata: ');const b1=document.createElement('b');b1.textContent=Number(d.avg||0).toLocaleString('id-ID');p1.append(b1);s1.append(p1);card.append(s1);
+  const s2=spSec('Statistik Pesanan');
+  s2.append(statRow('Total Pesanan','#6b7fd7',tot+' pesanan'));
+  SC.forEach(k=>{const c=(d.counts&&d.counts[k[0]])||0;s2.append(statRow(k[1],k[2],(tot?+(c*100/tot).toFixed(2):0)+'% ('+c+' pesanan)'))});card.append(s2);
+  const s3=spSec('Pesanan Terakhir');
+  if(!d.last||!d.last.length){const e=document.createElement('p');e.className='muted';e.textContent='Belum ada pesanan.';s3.append(e)}
+  else d.last.forEach(o=>{const it=document.createElement('div');it.className='sp-last sp-'+o.st;
+    const t=ago(o.at);if(t){const a=document.createElement('p');a.className='sp-ago';a.textContent=t;it.append(a)}
+    const st=document.createElement('p');st.className='sp-st';st.textContent='Status: '+(SL[o.st]||o.st);it.append(st);
+    if(o.qty){const q=document.createElement('p');q.className='sp-q';q.append('Jumlah Pesanan: ');const g=document.createElement('span');g.className='tag';g.textContent=o.qty;q.append(g);it.append(q)}
+    s3.append(it)});
+  card.append(s3);
+  box.append(card)}
  catch{}}
 function calc(){if(!sel)return;const q=Number($('#b_qty').value)||0;tot=Math.ceil(q*sel.price/1000);$('#total').textContent=rp(tot);
  $('#bmsg').textContent=(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':''}
@@ -181,7 +209,7 @@ async function loadCatalog(){loaded=true;$('#cmsg').textContent='Memuat layananâ
  try{const r=await fetch('/api/catalog');if(r.status===401){loaded=false;setMe(null);return}
   const d=await r.json();SV=d.data||[];
   if(!d.status||!SV.length){$('#cmsg').textContent='Belum ada layanan.';return}
-  $('#cmsg').textContent='Pilih kategori di atas.';showPlats()}
+  $('#cmsg').textContent='Pilih kategori di atas.';showPlats();showRec(d.rec||[])}
  catch{loaded=false;$('#cmsg').textContent='Gagal memuat layanan.'}}
 
 /* ---------- Pesan ---------- */

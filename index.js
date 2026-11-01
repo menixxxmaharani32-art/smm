@@ -227,10 +227,13 @@ app.post('/api/admin/users/delete', adminOnly, run(async (req) => {
 }));
 
 /* ================= API: publik & pembeli ================= */
+// Layanan rekomendasi: daftar id layanan (urut) disimpan di tabel settings, kunci "recommended"
+const recIds = (s) => { try { const a = JSON.parse(s.recommended || '[]'); return Array.isArray(a) ? a.map(String) : []; } catch (e) { return []; } };
 app.get('/api/catalog', buyerOnly, run(async () => {
-  const m = num((await getSettings()).markup_percent);
+  const st = await getSettings();
+  const m = num(st.markup_percent);
   const rows = await allServices();
-  return { status: true, data: rows.map((x) => ({ id: x.id, category: x.category, name: x.name, price: sellUnit(x.price, m), min: num(x.min), max: num(x.max) })) };
+  return { status: true, rec: recIds(st), data: rows.map((x) => ({ id: x.id, category: x.category, name: x.name, price: sellUnit(x.price, m), min: num(x.min), max: num(x.max) })) };
 }));
 
 app.post('/api/buyer/register', run(async (req, res) => {
@@ -319,6 +322,33 @@ app.get('/api/admin/service-sample', adminOnly, run(async () => ({
   data: await rest('services', '?select=id,category,name,data&limit=3'),
 })));
 
+/* ---- Admin: layanan rekomendasi ---- */
+const svcRow = (r, m) => ({ id: String(r.id), category: r.category, name: r.name, price: sellUnit(r.price, m) });
+app.get('/api/admin/recommended', adminOnly, run(async () => {
+  const s = await getSettings();
+  const ids = recIds(s);
+  if (!ids.length) return { status: true, data: [] };
+  const m = num(s.markup_percent);
+  const rows = await rest('services', '?select=id,category,name,price:data->>price&id=in.(' + ids.map(enc).join(',') + ')');
+  const by = Object.fromEntries(rows.map((r) => [String(r.id), r]));
+  return { status: true, data: ids.filter((i) => by[i]).map((i) => svcRow(by[i], m)) };
+}));
+app.post('/api/admin/recommended', adminOnly, run(async (req, res) => {
+  const raw = (req.body || {}).ids;
+  if (!Array.isArray(raw)) { res.status(400); return { status: false, error: 'Data tidak valid.' }; }
+  const ids = [...new Set(raw.map((x) => String(x).trim()).filter((x) => x && x.length <= 40))];
+  if (ids.length > 10) { res.status(400); return { status: false, error: 'Maksimal 10 layanan rekomendasi.' }; }
+  await saveSettings({ recommended: JSON.stringify(ids) });
+  return { status: true };
+}));
+app.get('/api/admin/services/search', adminOnly, run(async (req) => {
+  const q = String(req.query.q || '').replace(/[^\p{L}\p{N} ]/gu, ' ').trim().replace(/\s+/g, '*');
+  if (q.length < 2) return { status: true, data: [] };
+  const m = num((await getSettings()).markup_percent);
+  const rows = await rest('services', '?select=id,category,name,price:data->>price&or=(name.ilike.*' + enc(q) + '*,category.ilike.*' + enc(q) + '*)&order=name.asc&limit=30');
+  return { status: true, data: rows.map((r) => svcRow(r, m)) };
+}));
+
 // Pendapatan penjualan = jumlah harga semua pesanan pembeli (hari ini & bulan ini dihitung menurut WIB)
 app.get('/api/admin/revenue', adminOnly, run(async () => {
   let sel = 'price,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0;
@@ -402,10 +432,8 @@ app.get('/api/buyer/stats/:id', buyerOnly, run(async (req) => {
   const id = String(req.params.id || '');
   if (Date.now() - lastSync > 60000) { lastSync = Date.now(); await syncOrders(8).catch(() => {}); } // maksimal 1x per menit
   try {
-    let r = await tally('&service_id=eq.' + enc(id));
-    let scope = 'service';
-    if (!r.total) { r = await tally(''); scope = 'all'; } // layanan belum pernah dipesan: tampilkan statistik semua pesanan
-    return { status: true, total: r.total, counts: r.counts, avg: r.avg, last: r.last, scope };
+    const r = await tally('&service_id=eq.' + enc(id));
+    return { status: true, total: r.total, counts: r.counts, avg: r.avg, last: r.last };
   } catch (e) { console.error('stats:', e.message); return { status: false, error: 'Statistik gagal dimuat: ' + e.message.slice(0, 120) }; }
 }));
 

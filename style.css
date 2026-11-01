@@ -79,7 +79,9 @@ button.ghost:hover{background:var(--bg);filter:none}
 .meta{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:8px}
 .price{font-weight:800;color:var(--accent);font-size:.95rem;margin-right:4px}
 .tag{font-size:.78rem;font-weight:600;padding:2px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted);background:var(--surface)}
-#bf{border-color:var(--accent)}
+#bf,#recbox{border-color:var(--accent)}
+#reclist{margin-top:4px}
+#recbox h2 .badge{margin-left:6px;vertical-align:middle}
 
 .item{display:block;width:100%;text-align:left;background:transparent;color:var(--ink);border:0;border-top:1px solid var(--line);border-radius:0;margin:0;padding:12px 2px;font-weight:400;min-height:0}
 .item:hover{filter:none;background:var(--bg)}
@@ -139,8 +141,8 @@ details[open]>summary{color:var(--accent)}
 /* layar lebar (dasbor admin) */
 @media(min-width:720px){
  main{padding-top:36px}
- main.wide [data-p=home]:not(.hide),main.wide [data-p=dp]:not(.hide),main.wide [data-p=us]:not(.hide),main.wide [data-p=set]:not(.hide){display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-top:16px}
- main.wide [data-p=home]>.box,main.wide [data-p=dp]>.box,main.wide [data-p=us]>.box,main.wide [data-p=set]>.box{margin-top:0}
+ main.wide [data-p=home]:not(.hide),main.wide [data-p=dp]:not(.hide),main.wide [data-p=us]:not(.hide),main.wide [data-p=set]:not(.hide),main.wide [data-p=rec]:not(.hide){display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start;margin-top:16px}
+ main.wide [data-p=home]>.box,main.wide [data-p=dp]>.box,main.wide [data-p=us]>.box,main.wide [data-p=set]>.box,main.wide [data-p=rec]>.box{margin-top:0}
  main.wide [data-p=pay]>.box{max-width:560px}
 }
 @media(max-width:400px){

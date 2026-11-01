@@ -7,6 +7,7 @@ module.exports = {
 <button class="tab" type="button" data-t="home" aria-selected="true">Ringkasan</button>
 <button class="tab" type="button" data-t="dp" id="dtab" aria-selected="false">Deposit</button>
 <button class="tab" type="button" data-t="us" aria-selected="false">Pembeli</button>
+<button class="tab" type="button" data-t="rec" aria-selected="false">Rekomendasi</button>
 <button class="tab" type="button" data-t="pay" aria-selected="false">Pembayaran</button>
 <button class="tab" type="button" data-t="set" aria-selected="false">Pengaturan</button></nav>
 
@@ -33,6 +34,14 @@ module.exports = {
 <section class="box"><h2>Daftar pembeli</h2>
 <input id="uq" placeholder="Cari username" style="margin-top:12px" autocomplete="off">
 <div id="ulist" style="margin-top:8px"></div></section></div>
+
+<div data-p="rec" class="hide">
+<section class="box"><h2>Layanan rekomendasi</h2>
+<p class="muted" style="margin-top:6px">Tampil paling atas di halaman pembeli. Maksimal 10 layanan.</p>
+<div id="reclist" style="margin-top:8px"></div><div class="err" id="recmsg" role="status"></div></section>
+<section class="box"><h2>Tambah layanan</h2>
+<input id="rec_q" placeholder="Cari nama layanan atau kategori" style="margin-top:12px" autocomplete="off">
+<div id="recres" style="margin-top:8px"></div></section></div>
 
 <div data-p="pay" class="hide">
 <form class="box" id="payf" autocomplete="off"><h2>Pengaturan pembayaran</h2>
@@ -67,7 +76,7 @@ window.addEventListener('pageshow',e=>{if(e.persisted)location.reload()});
 
 function tab(t){document.querySelectorAll('[data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));
  document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));
- if(t==='dp')loadDeposits();if(t==='us')loadUsers()}
+ if(t==='dp')loadDeposits();if(t==='us')loadUsers();if(t==='rec')loadRec()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 $('#godp').onclick=()=>tab('dp');
 function item(t,sub,fn){const b=document.createElement('button');b.type='button';b.className='item';
@@ -89,7 +98,7 @@ async function loadRevenue(){
   $('#rtoday').textContent=d.has_date?rp(d.today):'-';$('#rmonth').textContent=d.has_date?rp(d.month):'-';
   $('#rnote').textContent=d.has_date?'Total harga pesanan pembeli (waktu WIB).':'Data tanggal pesanan belum tersedia, hanya total yang ditampilkan.'}
  catch{}}
-$('#refresh').onclick=()=>{balance();loadRevenue()};
+$('#refresh').onclick=()=>{balance();post('/api/admin/orders/sync').catch(()=>{});loadRevenue()};
 async function init(){const d=await api('/api/settings');
  $('#secret_key').placeholder=d.secret_key||'Belum diisi';$('#api_key').placeholder=d.api_key||'Belum diisi';$('#markup').value=d.markup_percent||'0';
  if(d.secret_key&&d.api_key)balance();else{$('#saldo').textContent='—';$('#provider').textContent='Isi key di tab Pengaturan.'}}
@@ -145,6 +154,31 @@ $('#tform').onsubmit=async e=>{e.preventDefault();
  say($('#tmsg'),d.status,d.status?('Berhasil. Saldo sekarang '+rp(d.balance)):errOf(d));
  if(d.status){$('#t_amt').value='';loadUsers()}};
 
+/* ---------- Rekomendasi ---------- */
+let REC=[];
+function drawRec(){const box=$('#reclist');box.textContent='';
+ if(!REC.length){box.textContent='Belum ada layanan rekomendasi.';return}
+ REC.forEach((x,i)=>{const row=document.createElement('div');row.className='ord';
+  const n=document.createElement('b');n.textContent=x.name;
+  const m=document.createElement('p');m.className='muted';m.textContent=x.category+' | '+rp(x.price)+' / 1000';
+  const bar=document.createElement('div');bar.className='row';
+  bar.append(btn('Naik','ghost',()=>moveRec(i,-1)),btn('Turun','ghost',()=>moveRec(i,1)),btn('Hapus','ghost',()=>{REC.splice(i,1);saveRec()}));
+  row.append(n,m,bar);box.append(row)})}
+function moveRec(i,d){const j=i+d;if(j<0||j>=REC.length)return;const t=REC[i];REC[i]=REC[j];REC[j]=t;saveRec()}
+async function loadRec(){try{const d=await api('/api/admin/recommended');if(d.status){REC=d.data;drawRec()}else $('#reclist').textContent=errOf(d)}catch{}}
+async function saveRec(){try{const d=await post('/api/admin/recommended',{ids:REC.map(x=>x.id)});
+  say($('#recmsg'),d.status,d.status?'Tersimpan. Langsung tampil di halaman pembeli.':errOf(d));await loadRec();searchRec()}catch{}}
+async function searchRec(){const q=$('#rec_q').value.trim();const box=$('#recres');box.textContent='';if(q.length<2)return;
+ try{const d=await api('/api/admin/services/search?q='+encodeURIComponent(q));
+  if(!d.status){box.textContent=errOf(d);return}
+  if(!d.data.length){box.textContent='Layanan tidak ditemukan.';return}
+  d.data.forEach(x=>{const has=REC.some(r=>r.id===x.id);
+   const it=item(x.name,(has?'Sudah ditambahkan | ':'')+x.category+' | '+rp(x.price)+' / 1000',()=>{
+    if(has)return;if(REC.length>=10){say($('#recmsg'),false,'Maksimal 10 layanan rekomendasi.');return}
+    REC.push(x);saveRec()});
+   if(has)it.style.opacity='.55';box.append(it)})}catch{}}
+let rtm;$('#rec_q').oninput=()=>{clearTimeout(rtm);rtm=setTimeout(searchRec,350)};
+
 /* ---------- Pembayaran (QRIS & Dana) ---------- */
 let newQris='';
 function showQris(u){const b=$('#p_prev');b.textContent='';if(!u)return;
@@ -162,5 +196,5 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
-init();loadDeposits();loadUsers();loadPay();loadRevenue();`,
+init();loadDeposits();loadUsers();loadPay();post('/api/admin/orders/sync').catch(()=>{});loadRevenue();`,
 };
