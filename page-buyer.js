@@ -1,18 +1,25 @@
 // Halaman pembeli: judul, HTML, dan script klien
 module.exports = {
-  title: 'Pilih layanan',
+  title: 'Alz Sosmed',
   body: `
-<h1>Pilih layanan</h1><p class="muted">Pilih platform, kategori, lalu layanan yang Anda butuhkan.</p>
+<h1 id="ttl">Masuk atau daftar</h1>
+<p class="muted" id="sub">Masuk atau daftar untuk melihat layanan dan memesan.</p>
 
-<section class="box hide" id="who"><div class="top"><div><b id="uname"></b><p class="muted" id="ubal"></p></div>
+<section class="box hide" id="auth">
+<div class="tabs" style="margin-top:0">
+<button class="tab" type="button" data-m="in" aria-selected="true">Masuk</button>
+<button class="tab" type="button" data-m="up" aria-selected="false">Daftar</button></div>
+<form id="af" autocomplete="on">
+<label for="a_user">Username</label><input id="a_user" autocapitalize="none" autocomplete="username" required>
+<label for="a_pass">Password</label><input id="a_pass" type="password" autocomplete="current-password" required>
+<p class="muted" id="a_hint" style="margin-top:8px;font-size:.88rem"></p>
+<div class="err" id="a_msg" role="alert"></div>
+<button type="submit" id="a_go" style="width:100%">Masuk</button></form></section>
+
+<div id="app" class="hide">
+<section class="box" id="who"><div class="top"><div><b id="uname"></b><p class="muted" id="ubal"></p></div>
 <button class="ghost" id="bout" type="button">Keluar</button></div>
 <p class="muted" style="margin-top:10px">Isi saldo: hubungi admin. Deposit otomatis segera hadir.</p></section>
-
-<section class="box" id="auth"><h2>Masuk atau daftar</h2>
-<label for="a_user">Username</label><input id="a_user" autocapitalize="none" autocomplete="username">
-<label for="a_pass">Password</label><input id="a_pass" type="password" autocomplete="current-password">
-<div class="err" id="a_msg" role="alert"></div>
-<div class="row"><button id="a_in" type="button">Masuk</button><button id="a_up" class="ghost" type="button">Daftar akun baru</button></div></section>
 
 <section class="box"><label style="margin-top:0">Platform</label><div class="chips" id="plats"></div>
 <label for="cat">Kategori</label><select id="cat" disabled></select></section>
@@ -22,25 +29,40 @@ module.exports = {
 <form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p>
 <label for="b_link">Link target</label><input id="b_link" inputmode="url" autocapitalize="none" placeholder="https://">
 <label for="b_qty">Jumlah</label><input id="b_qty" inputmode="numeric">
-<p class="muted" style="margin-top:18px">Total harga</p><div class="total" id="total">Rp 0</div>
-<div class="err" id="bmsg" role="status"></div><button type="submit" id="bgo">Pesan</button></form>
+<p class="muted" style="margin-top:18px">Total bayar</p><div class="total" id="total">Rp 0</div>
+<div class="err" id="bmsg" role="status"></div><button type="submit" id="bgo" style="width:100%">Pesan</button></form>
 
-<section class="box hide" id="ords"><h2>Pesanan saya</h2><div id="olist"></div></section>`,
+<section class="box" id="ords"><h2>Pesanan saya</h2><div id="olist"></div></section>
+</div>`,
   script: `
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
-let SV=[],sel=null,tot=0,me=null;
+let SV=[],sel=null,tot=0,me=null,loaded=false,mode='in';
 
-function setMe(u){me=u;$('#who').classList.toggle('hide',!u);$('#auth').classList.toggle('hide',!!u);$('#ords').classList.toggle('hide',!u);
- if(u){$('#uname').textContent=u.username;$('#ubal').textContent='Saldo '+rp(u.balance);loadOrders()}
- $('#bgo').textContent=u?'Pesan':'Masuk untuk memesan'}
+/* ---------- Masuk / Daftar ---------- */
+function setMode(m){mode=m;
+ document.querySelectorAll('#auth .tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.m===m)));
+ $('#a_go').textContent=m==='in'?'Masuk':'Daftar';
+ $('#a_pass').autocomplete=m==='in'?'current-password':'new-password';
+ $('#a_hint').textContent=m==='in'?'':'Username 3-20 karakter (huruf kecil, angka, atau garis bawah). Password minimal 6 karakter.';
+ $('#a_msg').textContent=''}
+document.querySelectorAll('#auth .tab').forEach(b=>b.onclick=()=>setMode(b.dataset.m));
+$('#af').onsubmit=async e=>{e.preventDefault();const go=$('#a_go');go.disabled=true;$('#a_msg').textContent='';
+ try{const d=await post('/api/buyer/'+(mode==='in'?'login':'register'),{username:$('#a_user').value,password:$('#a_pass').value});
+  if(d.status){$('#a_pass').value='';await loadMe()}else $('#a_msg').textContent=d.error||'Gagal.'}
+ catch{$('#a_msg').textContent='Tidak bisa terhubung ke server.'}
+ go.disabled=false};
+
+function setMe(u){me=u;
+ $('#auth').classList.toggle('hide',!!u);$('#app').classList.toggle('hide',!u);
+ $('#ttl').textContent=u?'Pilih layanan':'Masuk atau daftar';
+ $('#sub').textContent=u?'Pilih platform, kategori, lalu layanan yang Anda butuhkan.':'Masuk atau daftar untuk melihat layanan dan memesan.';
+ if(u){$('#uname').textContent=u.username;$('#ubal').textContent='Saldo '+rp(u.balance);loadOrders();if(!loaded)loadCatalog()}}
 async function loadMe(){try{const r=await fetch('/api/buyer/me');const d=await r.json();setMe(d.status?d:null)}catch{setMe(null)}}
-async function auth(kind){const d=await post('/api/buyer/'+kind,{username:$('#a_user').value,password:$('#a_pass').value});
- if(d.status){$('#a_msg').textContent='';$('#a_pass').value='';loadMe()}else $('#a_msg').textContent=d.error||'Gagal.'}
-$('#a_in').onclick=()=>auth('login');$('#a_up').onclick=()=>auth('register');
-$('#bout').onclick=async()=>{try{await post('/api/buyer/logout')}catch{}setMe(null);location.reload()};
+$('#bout').onclick=async()=>{try{await post('/api/buyer/logout')}catch{}location.reload()};
 
+/* ---------- Katalog (hanya setelah masuk) ---------- */
 const plat=c=>{const w=(c||'').trim().split(' ')[0]||'Lainnya';return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()};
 function showPlats(){const cnt={};SV.forEach(x=>{const p=plat(x.category);cnt[p]=(cnt[p]||0)+1});
  const box=$('#plats');box.textContent='';const names=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]);
@@ -60,16 +82,23 @@ function choose(x){sel=x;$('#bf').classList.remove('hide');$('#bname').textConte
 function calc(){if(!sel)return;const q=Number($('#b_qty').value)||0;tot=Math.ceil(q*sel.price/1000);$('#total').textContent=rp(tot);
  $('#bmsg').textContent=(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':''}
 $('#cat').onchange=showSvs;$('#b_qty').oninput=calc;
+async function loadCatalog(){loaded=true;$('#cmsg').textContent='Memuat layanan…';
+ try{const r=await fetch('/api/catalog');if(r.status===401){loaded=false;setMe(null);return}
+  const d=await r.json();SV=d.data||[];
+  if(!d.status||!SV.length){$('#cmsg').textContent='Belum ada layanan.';return}
+  $('#cmsg').textContent='Pilih kategori di atas.';showPlats()}
+ catch{loaded=false;$('#cmsg').textContent='Gagal memuat layanan.'}}
 
+/* ---------- Pesan ---------- */
 $('#bf').onsubmit=async e=>{e.preventDefault();
- if(!me){$('#auth').scrollIntoView({behavior:'smooth'});$('#a_msg').textContent='Masuk atau daftar dulu untuk memesan.';return}
  if(!sel)return;const q=Number($('#b_qty').value)||0;
  if(!$('#b_link').value.trim()){$('#bmsg').textContent='Isi link target.';return}
  if(!confirm('Pesan '+q+' untuk '+rp(tot)+'? Saldo Anda akan terpotong.'))return;
  $('#bmsg').textContent='Memproses…';
- const d=await post('/api/buyer/order',{service:sel.id,target:$('#b_link').value.trim(),quantity:q});
- if(d.status){$('#bmsg').textContent='Pesanan berhasil dibuat.';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders()}
- else $('#bmsg').textContent=d.error||'Gagal memesan.'};
+ try{const d=await post('/api/buyer/order',{service:sel.id,target:$('#b_link').value.trim(),quantity:q});
+  if(d.status){$('#bmsg').textContent='Pesanan berhasil dibuat.';$('#b_link').value='';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders()}
+  else $('#bmsg').textContent=d.error||'Gagal memesan.'}
+ catch{$('#bmsg').textContent='Tidak bisa terhubung ke server.'}};
 
 async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)return;const d=await r.json();const box=$('#olist');box.textContent='';
  if(!d.data||!d.data.length){box.textContent='Belum ada pesanan.';return}
@@ -80,8 +109,7 @@ async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)re
   const v=document.createElement('p');v.style.fontWeight='700';v.textContent=rp(o.price);
   row.append(l1,g,l2,v);box.append(row)})}
 
-fetch('/api/catalog').then(r=>r.json()).then(d=>{SV=d.data||[];
- if(!d.status||!SV.length){$('#cmsg').textContent='Belum ada layanan.';return}
- $('#cmsg').textContent='Pilih kategori di atas.';showPlats()}).catch(()=>{$('#cmsg').textContent='Gagal memuat layanan.'});
+setMode(location.hash==='#daftar'?'up':'in');
+window.addEventListener('hashchange',()=>setMode(location.hash==='#daftar'?'up':'in'));
 loadMe();`,
 };
