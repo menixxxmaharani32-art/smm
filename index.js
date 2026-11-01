@@ -214,6 +214,18 @@ app.post('/api/admin/topup', adminOnly, run(async (req) => {
   return { status: true, balance: nb };
 }));
 
+app.post('/api/admin/users/delete', adminOnly, run(async (req) => {
+  const username = String((req.body || {}).username || '').trim().toLowerCase();
+  if (!username) return { status: false, error: 'Username wajib diisi.' };
+  const [u] = await rest('users', '?select=id&username=eq.' + enc(username));
+  if (!u) return { status: false, error: 'Pembeli tidak ditemukan.' };
+  // riwayat pesanan & deposit dihapus dulu supaya tidak terhalang relasi (foreign key) di Supabase
+  await rest('orders', '?user_id=eq.' + enc(u.id), { method: 'DELETE' });
+  await rest('deposits', '?user_id=eq.' + enc(u.id), { method: 'DELETE' });
+  await rest('users', '?id=eq.' + enc(u.id), { method: 'DELETE' });
+  return { status: true };
+}));
+
 /* ================= API: publik & pembeli ================= */
 app.get('/api/catalog', buyerOnly, run(async () => {
   const m = num((await getSettings()).markup_percent);

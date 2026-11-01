@@ -121,7 +121,12 @@ async function loadDeposits(){
 async function loadUsers(){const d=await api('/api/admin/users?q='+encodeURIComponent($('#uq').value.trim()));const box=$('#ulist');box.textContent='';
  if(!d.status){box.textContent=errOf(d);return}
  if(!d.data.length){box.textContent='Belum ada pembeli.';return}
- d.data.forEach(u=>box.append(item(u.username,'Saldo '+rp(u.balance),()=>{$('#t_user').value=u.username;$('#t_amt').focus()})))}
+ d.data.forEach(u=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)';
+  const it=item(u.username,'Saldo '+rp(u.balance),()=>{$('#t_user').value=u.username;$('#t_amt').focus()});it.style.cssText='flex:1;min-width:0;border-top:0';
+  const del=document.createElement('button');del.type='button';del.className='ghost';del.textContent='Hapus';del.style.cssText='width:auto;padding:8px 12px;color:var(--danger);border-color:var(--danger)';
+  del.onclick=async()=>{if(!confirm('Hapus pembeli '+u.username+'? Saldo, riwayat pesanan, dan riwayat deposit pembeli ini ikut terhapus. Tidak bisa dibatalkan.'))return;
+   del.disabled=true;try{const d=await post('/api/admin/users/delete',{username:u.username});if(d.status)loadUsers();else{alert(errOf(d));del.disabled=false}}catch{del.disabled=false}};
+  row.append(it,del);box.append(row)})}
 let tm;$('#uq').oninput=()=>{clearTimeout(tm);tm=setTimeout(loadUsers,300)};
 $('#tform').onsubmit=async e=>{e.preventDefault();
  const d=await post('/api/admin/topup',{username:$('#t_user').value.trim(),amount:$('#t_amt').value.trim()});
