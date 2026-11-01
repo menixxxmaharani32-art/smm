@@ -1,7 +1,14 @@
 const express = require('express');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
 const app = express();
 app.use(express.json());
+
+let CSS_TEXT = '';
+try { CSS_TEXT = fs.readFileSync(path.join(__dirname, 'style.css'), 'utf8'); }
+catch (e) { console.error('style.css tidak terbaca:', e.message); }
+app.get('/style.css', (req, res) => res.type('css').send(CSS_TEXT));
 
 /* ---------- Auth (cookie bertanda tangan) ---------- */
 const secret = () => process.env.SESSION_SECRET || '';
@@ -28,14 +35,15 @@ const needLogin = (req, res, next) => (readUser(req) ? next() : res.status(401).
 
 /* ---------- Supabase (REST, pakai service role key) ---------- */
 const dbUrl = () => `${process.env.SUPABASE_URL}/rest/v1/settings`;
-const dbHead = () => ({
-  apikey: process.env.SUPABASE_SERVICE_KEY,
-  Authorization: `Bearer ${process.env.SUPABASE_SERVICE_KEY}`,
-  'Content-Type': 'application/json',
-});
+const dbHead = () => {
+  const k = process.env.SUPABASE_SERVICE_KEY || '';
+  const h = { apikey: k, 'Content-Type': 'application/json' };
+  if (k.startsWith('eyJ')) h.Authorization = 'Bearer ' + k; // hanya untuk kunci legacy (JWT)
+  return h;
+};
 async function getSettings() {
   const r = await fetch(dbUrl() + '?select=key,value', { headers: dbHead() });
-  if (!r.ok) throw new Error('Supabase error ' + r.status);
+  if (!r.ok) throw new Error('Supabase error ' + r.status + ' ' + (await r.text()).slice(0, 200));
   return Object.fromEntries((await r.json()).map((x) => [x.key, x.value]));
 }
 async function saveSettings(obj) {
@@ -45,7 +53,7 @@ async function saveSettings(obj) {
     headers: { ...dbHead(), Prefer: 'resolution=merge-duplicates' },
     body: JSON.stringify(rows),
   });
-  if (!r.ok) throw new Error('Supabase error ' + r.status);
+  if (!r.ok) throw new Error('Supabase error ' + r.status + ' ' + (await r.text()).slice(0, 200));
 }
 const mask = (v) => (v ? v.slice(0, 4) + '••••' + v.slice(-4) : '');
 
@@ -115,7 +123,31 @@ const run = (fn) => async (req, res) => {
   try { res.json(await fn(req)); } catch (e) { res.status(500).json({ status: false, error: e.message }); }
 };
 
-app.get('/api/services', needLogin, run(() => provider('services')));
+const svUrl = () => `${process.env.SUPABASE_URL}/rest/v1/services`;
+
+// Impor semua layanan dari Sprint Pedia ke tabel services (update jika sudah ada)
+app.post('/api/services/sync', needLogin, run(async () => {
+  const d = await provider('services');
+  if (!d.status || !Array.isArray(d.data)) return d;
+  const now = new Date().toISOString();
+  const rows = d.data.map((x) => ({ id: String(x.id), category: x.category || '', name: x.name || x.title || '', data: x, updated_at: now }));
+  for (let i = 0; i < rows.length; i += 500) {
+    const r = await fetch(svUrl(), { method: 'POST', headers: { ...dbHead(), Prefer: 'resolution=merge-duplicates' }, body: JSON.stringify(rows.slice(i, i + 500)) });
+    if (!r.ok) throw new Error('Supabase error ' + r.status + ' ' + (await r.text()).slice(0, 200) + ' (sudah menjalankan supabase.sql terbaru?)');
+  }
+  return { status: true, count: rows.length };
+}));
+
+// Daftar layanan dari database, dengan pencarian
+app.get('/api/services', needLogin, run(async (req) => {
+  const q = encodeURIComponent(String(req.query.q || '').replace(/[^\w\s.\-]/g, '').trim());
+  let url = svUrl() + '?select=id,category,name,data&order=category.asc,name.asc&limit=50';
+  if (q) url += '&or=(name.ilike.*' + q + '*,category.ilike.*' + q + '*,id.eq.' + q + ')';
+  const r = await fetch(url, { headers: { ...dbHead(), Prefer: 'count=exact' } });
+  if (!r.ok) throw new Error('Supabase error ' + r.status + ' ' + (await r.text()).slice(0, 200));
+  const total = Number((r.headers.get('content-range') || '').split('/')[1]) || 0;
+  return { status: true, data: await r.json(), total };
+}));
 
 app.post('/api/order', needLogin, run((req) => {
   const p = clean(req.body, ['service', 'target', 'quantity', 'custom_comments', 'custom_link']);
@@ -130,31 +162,10 @@ app.post('/api/status', needLogin, run((req) => {
 }));
 
 /* ---------- Halaman ---------- */
-const CSS = `:root{--bg:#e9eff1;--surface:#fff;--ink:#10222b;--muted:#5b6f78;--line:#cbd8dd;--accent:#0f766e;--accent-ink:#fff;--danger:#b42318}
-@media(prefers-color-scheme:dark){:root{--bg:#0c171c;--surface:#13242b;--ink:#e6f0f2;--muted:#8fa6af;--line:#244049;--accent:#2dd4bf;--accent-ink:#06211e;--danger:#ff8a7a}}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Plus Jakarta Sans",system-ui,sans-serif;min-height:100vh}
-main{max-width:520px;margin:0 auto;padding:28px 20px 48px}
-h1{font-size:1.6rem;margin:0 0 4px;letter-spacing:-.02em}
-p{margin:0}.muted{color:var(--muted)}
-.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:18px}
-label{display:block;font-weight:600;font-size:.9rem;margin:14px 0 6px}
-input,textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
-input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
-button{margin-top:18px;padding:12px 18px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;cursor:pointer}
-button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);margin-top:0}
-.err{color:var(--danger);min-height:1.5em;margin-top:12px;font-size:.92rem}
-.top{display:flex;justify-content:space-between;align-items:center;gap:12px}
-.saldo{font-size:2.6rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:6px}
-.item{display:block;width:100%;text-align:left;background:transparent;color:var(--ink);border:0;border-top:1px solid var(--line);border-radius:0;margin:0;padding:12px 2px;font-weight:400}
-.item b{display:block;font-weight:600}
-.pre{white-space:pre-wrap;word-break:break-word;margin-top:12px}
-h2{margin:0;font-size:1.1rem}`;
-
 const page = (title, body, script) => `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-<style>${CSS}</style></head><body><main>${body}</main><script>${script}</script></body></html>`;
+<link rel="stylesheet" href="/style.css"></head><body><main>${body}</main><script>${script}</script></body></html>`;
 
 const LOGIN = page('Masuk admin', `
 <h1>Masuk admin</h1><p class="muted">Kelola panel SMM dan koneksi provider.</p>
@@ -172,8 +183,8 @@ const ADMIN = page('Dasbor admin', `
 <section class="box"><p class="muted">Saldo Sprint Pedia</p><div class="saldo" id="saldo">…</div>
 <p class="muted" id="provider"></p><button class="ghost" id="refresh" type="button" style="margin-top:14px">Segarkan saldo</button></section>
 <section class="box"><h2>Daftar layanan</h2>
-<p class="muted">Cari layanan, lalu tap salah satu untuk mengisi ID-nya di form pesanan.</p>
-<button class="ghost" id="loadsv" type="button" style="margin-top:12px">Muat layanan</button>
+<p class="muted">Impor semua layanan dari Sprint Pedia, cari, lalu tap salah satu untuk mengisi ID-nya di form pesanan.</p>
+<button class="ghost" id="loadsv" type="button" style="margin-top:12px">Impor semua layanan</button>
 <input id="q" placeholder="Cari nama, kategori, atau ID" style="margin-top:12px" autocomplete="off">
 <p class="muted" id="svmsg" style="margin-top:8px"></p><div id="svlist" style="margin-top:8px"></div></section>
 <form class="box" id="oform" autocomplete="off"><h2>Pesan baru</h2>
@@ -209,18 +220,19 @@ $('#form').onsubmit=async e=>{e.preventDefault();
  if(d.ok){$('#secret_key').value='';$('#api_key').value='';init()}};
 $('#refresh').onclick=balance;
 $('#logout').onclick=async()=>{await fetch('/api/logout',{method:'POST'});location.href='/'};
-let SV=[];
 function item(t,sub,fn){const b=document.createElement('button');b.type='button';b.className='item';const a=document.createElement('b');a.textContent=t;const c=document.createElement('span');c.className='muted';c.textContent=sub;b.append(a,c);b.onclick=fn;return b}
-function showSv(){const q=$('#q').value.toLowerCase().trim();const box=$('#svlist');box.textContent='';
- const list=SV.filter(x=>!q||JSON.stringify(x).toLowerCase().includes(q)).slice(0,40);
- if(!list.length){box.textContent=SV.length?'Tidak ada yang cocok.':'';return}
- list.forEach(x=>{const name=x.name||x.title||x.category||'Layanan';
-  const sub='ID '+x.id+(x.category&&x.name?' | '+x.category:'')+(x.price!=null?' | '+rp(x.price):'')+(x.min?' | min '+x.min:'')+(x.max?' | max '+x.max:'');
-  box.append(item(name,sub,()=>{$('#o_service').value=x.id;$('#o_service').scrollIntoView({behavior:'smooth',block:'center'})}))})}
-async function loadSv(){$('#svmsg').textContent='Memuat layanan…';const d=await api('/api/services');
- if(d.status&&Array.isArray(d.data)){SV=d.data;$('#svmsg').textContent=SV.length+' layanan dimuat.';showSv()}
- else $('#svmsg').textContent=typeof d.data==='string'?d.data:(d.error||'Gagal memuat layanan.')}
-$('#loadsv').onclick=loadSv;$('#q').oninput=showSv;
+const rpx=v=>isNaN(Number(v))?String(v):rp(v);
+async function loadSv(){const d=await api('/api/services?q='+encodeURIComponent($('#q').value.trim()));const box=$('#svlist');box.textContent='';
+ if(!d.status){$('#svmsg').textContent=d.error||'Gagal memuat layanan.';return}
+ $('#svmsg').textContent=d.total?('Menampilkan '+d.data.length+' dari '+d.total+' layanan.'):'Belum ada layanan. Tap Impor semua layanan.';
+ d.data.forEach(x=>{const o=x.data||{};
+  const sub='ID '+x.id+(x.category?' | '+x.category:'')+(o.price!=null?' | '+rpx(o.price):'')+(o.min?' | min '+o.min:'')+(o.max?' | max '+o.max:'');
+  box.append(item(x.name||x.category||'Layanan',sub,()=>{$('#o_service').value=x.id;$('#o_service').scrollIntoView({behavior:'smooth',block:'center'})}))})}
+async function syncSv(){$('#svmsg').textContent='Mengimpor semua layanan, tunggu sebentar…';
+ const d=await api('/api/services/sync',{method:'POST'});
+ if(d.status){$('#svmsg').textContent=d.count+' layanan berhasil diimpor.';loadSv()}
+ else $('#svmsg').textContent=typeof d.data==='string'?d.data:(d.error||'Gagal mengimpor.')}
+let tm;$('#loadsv').onclick=syncSv;$('#q').oninput=()=>{clearTimeout(tm);tm=setTimeout(loadSv,300)};
 $('#oform').onsubmit=async e=>{e.preventDefault();
  const b={service:$('#o_service').value.trim(),target:$('#o_target').value.trim(),quantity:$('#o_qty').value.trim(),custom_comments:$('#o_comments').value.trim(),custom_link:$('#o_link').value.trim()};
  if(!confirm('Kirim pesanan layanan '+b.service+' sejumlah '+b.quantity+'? Saldo Sprint Pedia akan terpotong.'))return;
@@ -232,7 +244,7 @@ $('#sform').onsubmit=async e=>{e.preventDefault();$('#smsg').textContent='Memeri
  const d=await api('/api/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:$('#s_id').value.trim()})});
  if(d.status&&d.data&&typeof d.data==='object')$('#smsg').textContent=Object.entries(d.data).map(kv=>kv[0]+': '+kv[1]).join('\n');
  else $('#smsg').textContent=typeof d.data==='string'?d.data:(d.error||JSON.stringify(d))};
-init();`);
+init();loadSv();`);
 
 app.get('/', (req, res) => res.type('html').send(LOGIN));
 app.get('/admin', (req, res) => (readUser(req) ? res.type('html').send(ADMIN) : res.redirect('/')));
