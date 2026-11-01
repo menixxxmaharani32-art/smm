@@ -242,7 +242,7 @@ $('#oform').onsubmit=async e=>{e.preventDefault();
  else $('#omsg').textContent=typeof d.data==='string'?d.data:(d.error||JSON.stringify(d))};
 $('#sform').onsubmit=async e=>{e.preventDefault();$('#smsg').textContent='Memeriksa…';
  const d=await api('/api/status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id:$('#s_id').value.trim()})});
- if(d.status&&d.data&&typeof d.data==='object')$('#smsg').textContent=Object.entries(d.data).map(kv=>kv[0]+': '+kv[1]).join('\n');
+ if(d.status&&d.data&&typeof d.data==='object')$('#smsg').textContent=Object.entries(d.data).map(kv=>kv[0]+': '+kv[1]).join(String.fromCharCode(10));
  else $('#smsg').textContent=typeof d.data==='string'?d.data:(d.error||JSON.stringify(d))};
 init();loadSv();`);
 
