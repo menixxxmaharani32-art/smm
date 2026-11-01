@@ -2,19 +2,39 @@
 @media(prefers-color-scheme:dark){:root{--bg:#0c171c;--surface:#13242b;--ink:#e6f0f2;--muted:#8fa6af;--line:#244049;--accent:#2dd4bf;--accent-ink:#06211e;--danger:#ff8a7a}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Plus Jakarta Sans",system-ui,sans-serif;min-height:100vh}
-main{max-width:520px;margin:0 auto;padding:28px 20px 48px}
+main{max-width:560px;margin:0 auto;padding:28px 20px 56px}
 h1{font-size:1.6rem;margin:0 0 4px;letter-spacing:-.02em}
-p{margin:0}.muted{color:var(--muted)}
-.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:18px}
+h2{margin:0;font-size:1.1rem}
+p{margin:0}
+.muted{color:var(--muted)}
+.hide{display:none!important}
+.box{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:20px;margin-top:16px}
 label{display:block;font-weight:600;font-size:.9rem;margin:14px 0 6px}
-input,textarea{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
-input:focus-visible,textarea:focus-visible,button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+input,textarea,select{width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+input:focus-visible,textarea:focus-visible,select:focus-visible,button:focus-visible,summary:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 button{margin-top:18px;padding:12px 18px;border:0;border-radius:10px;background:var(--accent);color:var(--accent-ink);font:inherit;font-weight:700;cursor:pointer}
+button:disabled{opacity:.5;cursor:not-allowed}
 button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line);margin-top:0}
+.row{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}
+.row button{margin-top:0}
 .err{color:var(--danger);min-height:1.5em;margin-top:12px;font-size:.92rem}
+.pre{white-space:pre-wrap;word-break:break-word}
 .top{display:flex;justify-content:space-between;align-items:center;gap:12px}
 .saldo{font-size:2.6rem;font-weight:800;letter-spacing:-.03em;line-height:1.1;margin-top:6px}
+.total{font-size:1.9rem;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+.tabs{display:flex;gap:8px;overflow-x:auto;margin-top:16px;padding-bottom:4px}
+.tab{margin:0;padding:9px 16px;border-radius:999px;background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:600;white-space:nowrap}
+.tab[aria-selected=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:6px}
+.chip{margin:0;padding:8px 16px;border-radius:999px;background:transparent;color:var(--ink);border:1px solid var(--line);font-weight:600}
+.chip[aria-pressed=true]{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.svc{display:block;width:100%;text-align:left;margin:10px 0 0;padding:12px 14px;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:10px;font-weight:400}
+.svc b,.item b{display:block;font-weight:600}
+.svc[aria-pressed=true]{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent)}
 .item{display:block;width:100%;text-align:left;background:transparent;color:var(--ink);border:0;border-top:1px solid var(--line);border-radius:0;margin:0;padding:12px 2px;font-weight:400}
-.item b{display:block;font-weight:600}
-.pre{white-space:pre-wrap;word-break:break-word;margin-top:12px}
-h2{margin:0;font-size:1.1rem}
+details{border-top:1px solid var(--line)}
+summary{display:flex;justify-content:space-between;gap:12px;padding:13px 2px;font-weight:600;cursor:pointer;list-style:none}
+summary::-webkit-details-marker{display:none}
+details[open]>summary{color:var(--accent)}
+.ord{border-top:1px solid var(--line);padding:12px 0}
+.ord button{margin-top:8px;padding:8px 14px}
