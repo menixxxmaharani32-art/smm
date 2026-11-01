@@ -3,7 +3,14 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const app = express();
-app.use(express.json());
+app.disable('x-powered-by');
+app.use(express.json({ limit: '1mb' })); // foto QRIS / bukti transfer dikirim sebagai data kecil
+app.use((req, res, next) => {
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'same-origin' });
+  // halaman admin, login, dan API tidak boleh disimpan cache (tombol Back tidak bisa membuka dasbor setelah logout)
+  if (req.path.startsWith('/api') || req.path === '/admin' || req.path === '/login') res.set('Cache-Control', 'no-store');
+  next();
+});
 
 let CSS_TEXT = '';
 try { CSS_TEXT = fs.readFileSync(path.join(__dirname, 'style.css'), 'utf8'); }
@@ -17,8 +24,8 @@ const hash = (v) => crypto.createHash('sha256').update(String(v)).digest();
 const safeEqual = (a, b) => crypto.timingSafeEqual(hash(a), hash(b));
 const cookie = (name, v, maxAge) => `${name}=${v}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
 
-function tokenOf(obj) {
-  const p = Buffer.from(JSON.stringify({ ...obj, exp: Date.now() + 7 * 864e5 })).toString('base64url');
+function tokenOf(obj, ttlMs = 7 * 864e5) {
+  const p = Buffer.from(JSON.stringify({ ...obj, exp: Date.now() + ttlMs })).toString('base64url');
   return p + '.' + sign(p);
 }
 function readTok(req, name) {
@@ -91,7 +98,7 @@ async function rpc(fn, args) {
   if (!r.ok) throw new Error('Supabase error ' + r.status + ' ' + (await r.text()).slice(0, 200));
   return r.json();
 }
-const getSettings = async () => Object.fromEntries((await rest('settings', '?select=key,value')).map((x) => [x.key, x.value]));
+const getSettings = async () => Object.fromEntries((await rest('settings', '?select=key,value&key=neq.pay_qris')).map((x) => [x.key, x.value]));
 const saveSettings = (obj) =>
   rest('settings', '', { method: 'POST', prefer: 'resolution=merge-duplicates', body: Object.entries(obj).map(([key, value]) => ({ key, value })) });
 
@@ -140,7 +147,7 @@ app.post('/api/login', (req, res) => {
   const okUser = safeEqual(username, ADMIN_USER);
   const okPass = safeEqual(password, ADMIN_PASS);
   if (!(okUser && okPass)) return res.status(401).json({ ok: false, error: 'Username atau password salah.' });
-  res.setHeader('Set-Cookie', cookie('session', tokenOf({ u: username }), 604800));
+  res.setHeader('Set-Cookie', cookie('session', tokenOf({ u: username }, 12 * 36e5), 43200));
   res.json({ ok: true });
 });
 app.post('/api/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('session', '', 0)); res.json({ ok: true }); });
@@ -176,23 +183,6 @@ app.post('/api/services/sync', adminOnly, run(async () => {
   cache.rows = null;
   return { status: true, count: rows.length };
 }));
-app.get('/api/services', adminOnly, run(async () => {
-  const s = await getSettings();
-  const rows = await allServices();
-  return { status: true, markup: num(s.markup_percent), data: rows.map((x) => ({ id: x.id, category: x.category, name: x.name, price: num(x.price), min: num(x.min), max: num(x.max) })) };
-}));
-
-app.post('/api/order', adminOnly, run((req) => {
-  const p = clean(req.body, ['service', 'target', 'quantity', 'custom_comments', 'custom_link']);
-  if (!p.service || !p.quantity) return { status: false, error: 'Layanan dan jumlah wajib diisi.' };
-  return provider('order', p);
-}));
-app.post('/api/status', adminOnly, run((req) => {
-  const p = clean(req.body, ['id']);
-  if (!p.id) return { status: false, error: 'ID pesanan wajib diisi.' };
-  return provider('status', p);
-}));
-
 app.get('/api/admin/users', adminOnly, run(async (req) => {
   const q = String(req.query.q || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
   const rows = await rest('users', '?select=username,balance,created_at&order=created_at.desc&limit=100' + (q ? '&username=ilike.*' + q + '*' : ''));
@@ -223,9 +213,8 @@ app.post('/api/buyer/register', run(async (req, res) => {
   if (!/^[a-z0-9_]{3,20}$/.test(username)) return { status: false, error: 'Username 3-20 karakter: huruf kecil, angka, atau garis bawah.' };
   if (password.length < 6 || password.length > 72) return { status: false, error: 'Password minimal 6 karakter.' };
   try {
-    const [u] = await rest('users', '', { method: 'POST', prefer: 'return=representation', body: { username, password_hash: hashPw(password) } });
-    res.setHeader('Set-Cookie', cookie('bs', tokenOf({ id: u.id }), 604800));
-    return { status: true };
+    await rest('users', '', { method: 'POST', body: { username, password_hash: hashPw(password) } });
+    return { status: true }; // tidak otomatis login: pembeli diminta masuk sendiri
   } catch (e) {
     if (e.status === 409) return { status: false, error: 'Username sudah dipakai.' };
     throw e;
@@ -294,6 +283,8 @@ app.post('/api/buyer/status', buyerOnly, run(async (req) => {
   return { status: true, state: String(st) };
 }));
 
+require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc });
+
 /* ================= Halaman ================= */
 const page = (title, body, script) => `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
@@ -319,7 +310,7 @@ const BUYER = page(BUYER_PAGE.title, BUYER_PAGE.body, BUYER_PAGE.script);
 
 /* ================= Rute halaman ================= */
 app.get('/', (req, res) => res.type('html').send(BUYER));
-app.get('/login', (req, res) => res.type('html').send(LOGIN));
+app.get('/login', (req, res) => (readAdmin(req) ? res.redirect('/admin') : res.type('html').send(LOGIN)));
 app.get('/admin', (req, res) => (readAdmin(req) ? res.type('html').send(ADMIN) : res.redirect('/login')));
 
 module.exports = app;
