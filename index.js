@@ -313,6 +313,32 @@ app.post('/api/buyer/status', buyerOnly, run(async (req) => {
   return { status: true, state: String(st) };
 }));
 
+// Pendapatan penjualan = jumlah harga semua pesanan pembeli (hari ini & bulan ini dihitung menurut WIB)
+app.get('/api/admin/revenue', adminOnly, run(async () => {
+  let sel = 'price,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0;
+  const wib = (t) => new Date(new Date(t).getTime() + 7 * 36e5).toISOString();
+  const nowW = wib(Date.now());
+  const dayKey = nowW.slice(0, 10), monKey = nowW.slice(0, 7);
+  for (let off = 0; off < 100000; off += 1000) {
+    let part;
+    try { part = await rest('orders', '?select=' + sel + '&order=id.asc&limit=1000&offset=' + off); }
+    catch (e) {
+      if (off === 0 && hasDate) { hasDate = false; sel = 'price'; off -= 1000; continue; }
+      throw e;
+    }
+    for (const o of part) {
+      const p = num(o.price);
+      total += p; count++;
+      if (hasDate && o.created_at) {
+        const w = wib(o.created_at);
+        if (w.slice(0, 7) === monKey) { month += p; if (w.slice(0, 10) === dayKey) today += p; }
+      }
+    }
+    if (part.length < 1000) break;
+  }
+  return { status: true, total, today, month, orders: count, has_date: hasDate };
+}));
+
 // Statistik pesanan per layanan (dihitung dari pesanan di web ini)
 const stGroup = (s) => {
   const t = String(s || '').toLowerCase();

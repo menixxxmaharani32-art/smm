@@ -106,6 +106,11 @@ details[open]>summary{color:var(--accent)}
 .stat-row{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:.95rem}
 .pill{flex:0 0 120px;text-align:center;color:#fff;font-weight:700;border-radius:999px;padding:4px 8px;font-size:.85rem}
 
+.rev{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--line)}
+.rev:first-of-type{margin-top:0}
+.rev-box .saldo{margin-bottom:12px}
+@media(min-width:720px){main.wide [data-p=home]>.rev-box{grid-column:1/-1}}
+
 /* QRIS */
 .qris{display:block;width:100%;max-width:260px;margin:16px auto 0;padding:10px;background:#fff;border:1px solid var(--line);border-radius:16px;cursor:zoom-in;min-height:0;box-shadow:var(--shadow)}
 .qris:hover{filter:none;border-color:var(--accent)}

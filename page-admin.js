@@ -14,7 +14,12 @@ module.exports = {
 <section class="box"><p class="muted">Saldo Sprint Pedia</p><div class="saldo" id="saldo">…</div>
 <p class="muted" id="provider"></p><button class="ghost" id="refresh" type="button" style="margin-top:14px">Segarkan saldo</button></section>
 <section class="box"><p class="muted">Deposit menunggu persetujuan</p><div class="saldo" id="pcount">…</div>
-<button class="ghost" id="godp" type="button" style="margin-top:14px">Lihat deposit</button></section></div>
+<button class="ghost" id="godp" type="button" style="margin-top:14px">Lihat deposit</button></section>
+<section class="box rev-box"><p class="muted">Pendapatan penjualan</p><div class="saldo" id="rtotal">…</div>
+<div class="rev"><span class="muted">Hari ini</span><b id="rtoday">…</b></div>
+<div class="rev"><span class="muted">Bulan ini</span><b id="rmonth">…</b></div>
+<div class="rev"><span class="muted">Jumlah pesanan</span><b id="rcount">…</b></div>
+<p class="muted" id="rnote" style="margin-top:10px;font-size:.85rem"></p></section></div>
 
 <div data-p="dp" class="hide">
 <section class="box"><h2>Menunggu persetujuan</h2><div id="dpend" style="margin-top:8px"></div></section>
@@ -51,7 +56,7 @@ module.exports = {
 <button type="button" id="loadsv">Impor semua layanan</button><div class="err" id="svmsg" role="status"></div></section></div>`,
   script: `
 const $=s=>document.querySelector(s);
-const rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
+const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
 async function api(p,o){const r=await fetch(p,o);if(r.status===401){location.href='/login';throw new Error('401')}return r.json()}
 const post=(p,b)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
 const errOf=d=>typeof d.data==='string'?d.data:(d.error||'Terjadi kesalahan.');
@@ -77,7 +82,14 @@ async function balance(){$('#provider').textContent='Mengambil saldo…';
  try{const d=await api('/api/profile');
   if(d.status){$('#saldo').textContent=rp(d.data.balance);$('#provider').textContent='Terhubung sebagai '+d.data.username}
   else{$('#saldo').textContent='—';$('#provider').textContent=errOf(d)}}catch{}}
-$('#refresh').onclick=balance;
+async function loadRevenue(){
+ try{const d=await api('/api/admin/revenue');
+  if(!d.status){$('#rnote').textContent=errOf(d);return}
+  $('#rtotal').textContent=rp(d.total);$('#rcount').textContent=Number(d.orders).toLocaleString('id-ID');
+  $('#rtoday').textContent=d.has_date?rp(d.today):'-';$('#rmonth').textContent=d.has_date?rp(d.month):'-';
+  $('#rnote').textContent=d.has_date?'Total harga pesanan pembeli (waktu WIB).':'Data tanggal pesanan belum tersedia, hanya total yang ditampilkan.'}
+ catch{}}
+$('#refresh').onclick=()=>{balance();loadRevenue()};
 async function init(){const d=await api('/api/settings');
  $('#secret_key').placeholder=d.secret_key||'Belum diisi';$('#api_key').placeholder=d.api_key||'Belum diisi';$('#markup').value=d.markup_percent||'0';
  if(d.secret_key&&d.api_key)balance();else{$('#saldo').textContent='—';$('#provider').textContent='Isi key di tab Pengaturan.'}}
@@ -150,5 +162,5 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
-init();loadDeposits();loadUsers();loadPay();`,
+init();loadDeposits();loadUsers();loadPay();loadRevenue();`,
 };

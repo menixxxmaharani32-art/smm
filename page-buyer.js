@@ -54,7 +54,7 @@ module.exports = {
 </div>`,
   script: `
 const $=s=>document.querySelector(s);
-const rp=n=>'Rp '+Number(n||0).toLocaleString('id-ID');
+const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
 let SV=[],sel=null,tot=0,me=null,loaded=false,mode='in';
 
