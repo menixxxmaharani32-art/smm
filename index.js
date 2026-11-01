@@ -265,6 +265,7 @@ app.get('/api/buyer/me', buyerOnly, run(async (req) => {
   return u ? { status: true, username: u.username, balance: num(u.balance) } : { status: false, error: 'Akun tidak ditemukan.' };
 }));
 app.get('/api/buyer/orders', buyerOnly, run(async (req) => {
+  await maybeQueue();
   const tail = '&order=id.desc&limit=20&user_id=eq.' + enc(req.buyerId);
   let data;
   try { data = await rest('orders', '?select=id,service_name,target,quantity,price,status' + tail); }
@@ -288,13 +289,32 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
   const uid = req.buyerId;
   const left = await rpc('adjust_balance', { p_user: uid, p_delta: -total });
   if (left === null) return { status: false, error: 'Saldo tidak cukup untuk pesanan ini.' };
-  let d;
-  try { d = await provider('order', { service: sv.id, target: tgt, quantity: String(qty) }); }
-  catch (e) { await rpc('adjust_balance', { p_user: uid, p_delta: total }); throw e; }
-  if (!d || !d.status) {
-    console.error('Provider menolak pesanan:', JSON.stringify(d));
-    await rpc('adjust_balance', { p_user: uid, p_delta: total });
-    return { status: false, error: 'Pesanan gagal diproses. Saldo Anda dikembalikan. Coba lagi nanti atau hubungi admin.' };
+  const refund = () => rpc('adjust_balance', { p_user: uid, p_delta: total });
+  const cost = (num(sv.price) * qty) / 1000; // modal di Sprint Pedia
+  const bal = await providerBalance();
+  let queue = bal !== null && bal < cost; // saldo Sprint Pedia kurang: pesanan ditahan (Pending)
+  let d = null;
+  if (!queue) {
+    try { d = await provider('order', { service: sv.id, target: tgt, quantity: String(qty) }); }
+    catch (e) { await refund(); throw e; }
+    if (!d || !d.status) {
+      if (noBalance(d)) queue = true;
+      else {
+        console.error('Provider menolak pesanan:', JSON.stringify(d));
+        await refund();
+        return { status: false, error: 'Pesanan gagal diproses. Saldo Anda dikembalikan. Coba lagi nanti atau hubungi admin.' };
+      }
+    }
+  }
+  if (queue) {
+    try {
+      await rest('orders', '', { method: 'POST', body: { user_id: uid, service_id: sv.id, service_name: sv.name, target: tgt, quantity: qty, price: total, provider_order_id: null, status: 'queued' } });
+    } catch (e) {
+      console.error('Gagal mengantrekan pesanan:', e.message);
+      await refund();
+      return { status: false, error: 'Pesanan gagal diproses. Saldo Anda dikembalikan. Coba lagi nanti atau hubungi admin.' };
+    }
+    return { status: true, queued: true, total, balance: left };
   }
   const pid = d.data && (d.data.id || d.data.order_id);
   try {
@@ -306,8 +326,9 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
 app.post('/api/buyer/status', buyerOnly, run(async (req) => {
   const id = parseInt((req.body || {}).id, 10);
   if (!id) return { status: false, error: 'Pesanan tidak valid.' };
-  const [o] = await rest('orders', '?select=id,provider_order_id&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId));
+  const [o] = await rest('orders', '?select=id,status,provider_order_id&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId));
   if (!o) return { status: false, error: 'Pesanan tidak ditemukan.' };
+  if (!o.provider_order_id && ['queued', 'sending'].includes(o.status)) return { status: true, state: 'pending' };
   if (!o.provider_order_id) return { status: false, error: 'Status belum bisa dicek untuk pesanan ini.' };
   const d = await provider('status', { id: o.provider_order_id });
   const st = d && d.status && d.data && typeof d.data === 'object' ? d.data.status : null;
@@ -402,7 +423,67 @@ async function syncOrders(limit) {
   return { checked: todo.length, updated };
 }
 let lastSync = 0;
-app.post('/api/admin/orders/sync', adminOnly, run(async () => ({ status: true, ...(await syncOrders(30)) })));
+app.post('/api/admin/orders/sync', adminOnly, run(async () => {
+  const q = await processQueue(20);
+  const sy = await syncOrders(30);
+  return { status: true, ...sy, processed: q.processed, queued: q.waiting };
+}));
+
+/* ---- Antrean pesanan saat saldo Sprint Pedia kurang ---- */
+const noBalance = (d) => /saldo|balance|insufficient|funds/i.test(JSON.stringify(d || ''));
+async function providerBalance() {
+  try {
+    const d = await provider('profile');
+    const b = d && d.status && d.data ? Number(d.data.balance) : NaN;
+    return Number.isFinite(b) ? b : null;
+  } catch (e) { return null; }
+}
+let queueBusy = false, lastQueue = 0;
+async function processQueue(limit) {
+  const out = { processed: 0, waiting: 0 };
+  if (queueBusy) return out;
+  queueBusy = true;
+  try {
+    let rows;
+    try { rows = await rest('orders', '?select=id,user_id,service_id,target,quantity,price&status=eq.queued&order=id.asc&limit=' + limit); }
+    catch (e) { return out; }
+    if (rows.length) {
+      const ids = [...new Set(rows.map((o) => String(o.service_id)))];
+      const svs = await rest('services', '?select=id,price:data->>price&id=in.(' + ids.map(enc).join(',') + ')');
+      const priceOf = Object.fromEntries(svs.map((x) => [String(x.id), num(x.price)]));
+      let bal = await providerBalance();
+      const back = (id) => rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { status: 'queued' } }).catch(() => {});
+      for (const o of rows) {
+        const cost = ((priceOf[String(o.service_id)] || 0) * num(o.quantity)) / 1000;
+        if (bal !== null && bal < cost) break; // saldo Sprint Pedia belum cukup: tetap antre
+        // klaim dulu (hanya jika masih antre) supaya tidak terkirim dua kali
+        const [c] = (await rest('orders', '?select=id&id=eq.' + o.id + '&status=eq.queued', { method: 'PATCH', prefer: 'return=representation', body: { status: 'sending' } })) || [];
+        if (!c) continue;
+        let d;
+        try { d = await provider('order', { service: String(o.service_id), target: o.target, quantity: String(o.quantity) }); }
+        catch (e) { await back(o.id); break; }
+        if (d && d.status) {
+          const pid = d.data && (d.data.id || d.data.order_id);
+          await rest('orders', '?id=eq.' + o.id, { method: 'PATCH', body: { status: 'pending', provider_order_id: pid ? String(pid) : null } });
+          out.processed++;
+          if (bal !== null) bal -= cost;
+        } else if (noBalance(d) || (d && d.error === 'Key belum diisi.')) { await back(o.id); break; }
+        else {
+          console.error('Pesanan antre ditolak:', JSON.stringify(d));
+          await rpc('adjust_balance', { p_user: o.user_id, p_delta: num(o.price) }).catch(() => {}); // saldo pembeli dikembalikan
+          await rest('orders', '?id=eq.' + o.id, { method: 'PATCH', body: { status: 'error' } }).catch(() => {});
+        }
+      }
+    }
+    try { out.waiting = (await rest('orders', '?select=id&status=eq.queued&limit=1000')).length; } catch (e) { /* abaikan */ }
+    return out;
+  } finally { queueBusy = false; }
+}
+const maybeQueue = async () => { // dipicu aktivitas pembeli, maksimal 1x per menit
+  if (Date.now() - lastQueue < 60000) return;
+  lastQueue = Date.now();
+  await processQueue(5).catch(() => {});
+};
 
 async function tally(filter) {
   const counts = { pending: 0, processing: 0, success: 0, partial: 0, error: 0 };
@@ -430,11 +511,28 @@ async function tally(filter) {
 }
 app.get('/api/buyer/stats/:id', buyerOnly, run(async (req) => {
   const id = String(req.params.id || '');
+  await maybeQueue();
   if (Date.now() - lastSync > 60000) { lastSync = Date.now(); await syncOrders(8).catch(() => {}); } // maksimal 1x per menit
   try {
     const r = await tally('&service_id=eq.' + enc(id));
     return { status: true, total: r.total, counts: r.counts, avg: r.avg, last: r.last };
   } catch (e) { console.error('stats:', e.message); return { status: false, error: 'Statistik gagal dimuat: ' + e.message.slice(0, 120) }; }
+}));
+
+// Refill (garansi) lewat Sprint Pedia
+app.post('/api/buyer/refill', buyerOnly, run(async (req) => {
+  if (limited(req, 'refill')) return { status: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' };
+  const id = parseInt((req.body || {}).id, 10);
+  if (!id) return { status: false, error: 'Pesanan tidak valid.' };
+  const [o] = await rest('orders', '?select=id,status,provider_order_id&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId));
+  if (!o) return { status: false, error: 'Pesanan tidak ditemukan.' };
+  if (!o.provider_order_id) return { status: false, error: 'Pesanan ini belum diproses, belum bisa refill.' };
+  if (!['success', 'partial'].includes(stGroup(o.status))) return { status: false, error: 'Refill hanya bisa untuk pesanan yang sudah selesai (Sukses).' };
+  const d = await provider('refill', { id: o.provider_order_id });
+  if (d && d.status) return { status: true, message: 'Permintaan refill sudah dikirim ke provider.' };
+  console.error('Refill ditolak:', JSON.stringify(d));
+  const why = d && (typeof d.data === 'string' ? d.data : (d.error || d.message));
+  return { status: false, error: why ? 'Refill ditolak: ' + String(why).slice(0, 160) : 'Refill ditolak. Layanan ini mungkin tidak mendukung refill atau belum waktunya.' };
 }));
 
 require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc });

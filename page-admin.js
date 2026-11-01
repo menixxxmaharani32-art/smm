@@ -16,6 +16,8 @@ module.exports = {
 <p class="muted" id="provider"></p><button class="ghost" id="refresh" type="button" style="margin-top:14px">Segarkan saldo</button></section>
 <section class="box"><p class="muted">Deposit menunggu persetujuan</p><div class="saldo" id="pcount">…</div>
 <button class="ghost" id="godp" type="button" style="margin-top:14px">Lihat deposit</button></section>
+<section class="box"><p class="muted">Pesanan menunggu saldo Sprint Pedia</p><div class="saldo" id="qcount">…</div>
+<p class="muted" style="margin-top:6px;font-size:.88rem">Berstatus Pending di pembeli. Diproses otomatis setelah saldo Sprint Pedia terisi.</p></section>
 <section class="box rev-box"><p class="muted">Pendapatan penjualan</p><div class="saldo" id="rtotal">…</div>
 <div class="rev"><span class="muted">Hari ini</span><b id="rtoday">…</b></div>
 <div class="rev"><span class="muted">Bulan ini</span><b id="rmonth">…</b></div>
@@ -98,7 +100,8 @@ async function loadRevenue(){
   $('#rtoday').textContent=d.has_date?rp(d.today):'-';$('#rmonth').textContent=d.has_date?rp(d.month):'-';
   $('#rnote').textContent=d.has_date?'Total harga pesanan pembeli (waktu WIB).':'Data tanggal pesanan belum tersedia, hanya total yang ditampilkan.'}
  catch{}}
-$('#refresh').onclick=()=>{balance();post('/api/admin/orders/sync').catch(()=>{});loadRevenue()};
+function syncAll(){return post('/api/admin/orders/sync').then(d=>{if(d&&d.status)$('#qcount').textContent=d.queued||0}).catch(()=>{})}
+$('#refresh').onclick=()=>{balance();syncAll();loadRevenue()};
 async function init(){const d=await api('/api/settings');
  $('#secret_key').placeholder=d.secret_key||'Belum diisi';$('#api_key').placeholder=d.api_key||'Belum diisi';$('#markup').value=d.markup_percent||'0';
  if(d.secret_key&&d.api_key)balance();else{$('#saldo').textContent='—';$('#provider').textContent='Isi key di tab Pengaturan.'}}
@@ -196,5 +199,5 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
-init();loadDeposits();loadUsers();loadPay();post('/api/admin/orders/sync').catch(()=>{});loadRevenue();`,
+init();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();`,
 };

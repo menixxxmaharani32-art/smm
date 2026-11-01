@@ -219,7 +219,7 @@ $('#bf').onsubmit=async e=>{e.preventDefault();
  if(!confirm('Pesan '+q+' untuk '+rp(tot)+'? Saldo Anda akan terpotong.'))return;
  $('#bmsg').textContent='Memproses…';
  try{const d=await post('/api/buyer/order',{service:sel.id,target:$('#b_link').value.trim(),quantity:q});
-  if(d.status){$('#bmsg').textContent='Pesanan berhasil dibuat.';$('#b_link').value='';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders()}
+  if(d.status){$('#bmsg').textContent=d.queued?'Pesanan diterima dengan status Pending. Akan diproses otomatis.':'Pesanan berhasil dibuat.';$('#b_link').value='';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders()}
   else $('#bmsg').textContent=d.error||'Gagal memesan.'}
  catch{$('#bmsg').textContent='Tidak bisa terhubung ke server.'}};
 
@@ -231,13 +231,21 @@ function stInfo(s){const t=String(s||'').toLowerCase();
  if(t.indexOf('proc')>-1||t.indexOf('progress')>-1||t.indexOf('run')>-1)return['Diproses','proc'];
  return[String(s),'pending']}
 function setBadge(el,s){const i=stInfo(s);el.textContent=i[0];el.className='st st-'+i[1];return i[1]!=='pending'&&i[1]!=='proc'}
-async function checkOrder(id,badge,btn){if(btn){btn.disabled=true;btn.textContent='Mengecek…'}
+async function checkOrder(id,badge,btn,row){if(btn){btn.disabled=true;btn.textContent='Mengecek…'}
  let fin=false;
  try{const d=await post('/api/buyer/status',{id});
-  if(d.status){fin=setBadge(badge,d.state);if(btn){if(fin)btn.remove();else{btn.disabled=false;btn.textContent='Cek status'}}}
+  if(d.status){fin=setBadge(badge,d.state);if(fin&&row&&['ok','part'].indexOf(stInfo(d.state)[1])>-1)addRefillBtn(row,id);if(btn){if(fin)btn.remove();else{btn.disabled=false;btn.textContent='Cek status'}}}
   else if(btn){btn.disabled=false;btn.textContent='Cek status'}}
  catch{if(btn){btn.disabled=false;btn.textContent='Cek status'}}
  return fin}
+function addRefillBtn(row,id){if(row.querySelector('.rf'))return;
+ const b=document.createElement('button');b.type='button';b.className='ghost rf';b.textContent='Ajukan refill';
+ const m=document.createElement('p');m.className='muted';m.style.cssText='margin-top:6px;font-size:.88rem';
+ b.onclick=async()=>{if(!confirm('Ajukan refill untuk pesanan ini?'))return;b.disabled=true;m.style.color='';m.textContent='Mengirim…';
+  try{const d=await post('/api/buyer/refill',{id});m.style.color=d.status?'var(--accent)':'var(--danger)';m.textContent=d.status?(d.message||'Refill diajukan.'):(d.error||'Refill gagal.')}
+  catch{m.style.color='var(--danger)';m.textContent='Tidak bisa terhubung ke server.'}
+  b.disabled=false};
+ row.append(b,m)}
 let oseq=0;
 async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)return;const d=await r.json();const box=$('#olist');box.textContent='';
  const mine=++oseq;
@@ -252,9 +260,10 @@ async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)re
   v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
   row.append(hd,g,v);
   if(!fin){const c=document.createElement('button');c.type='button';c.className='ghost';c.textContent='Cek status';
-   c.onclick=()=>checkOrder(o.id,bg,c);row.append(c);todo.push([o.id,bg,c])}
+   c.onclick=()=>checkOrder(o.id,bg,c,row);row.append(c);todo.push([o.id,bg,c,row])}
+  else if(['ok','part'].indexOf(stInfo(o.status)[1])>-1)addRefillBtn(row,o.id)
   box.append(row)});
- for(const t of todo.slice(0,10)){if(mine!==oseq)break;await checkOrder(t[0],t[1],t[2])}}
+ for(const t of todo.slice(0,10)){if(mine!==oseq)break;await checkOrder(t[0],t[1],t[2],t[3])}}
 $('#orf').onclick=loadOrders;
 
 setMode(location.hash==='#daftar'?'up':'in');
