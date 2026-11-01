@@ -143,10 +143,15 @@ app.post('/api/login', (req, res) => {
   if (!ADMIN_USER || !ADMIN_PASS || !SESSION_SECRET)
     return res.status(500).json({ ok: false, error: 'Environment variable belum diatur di Vercel.' });
   if (limited(req, 'admin')) return res.status(429).json({ ok: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
-  const { username = '', password = '' } = req.body || {};
-  const okUser = safeEqual(username, ADMIN_USER);
-  const okPass = safeEqual(password, ADMIN_PASS);
-  if (!(okUser && okPass)) return res.status(401).json({ ok: false, error: 'Username atau password salah.' });
+  // spasi di awal/akhir diabaikan (umum terjadi saat salin-tempel atau autocomplete HP); username tidak peka huruf besar/kecil
+  const username = String((req.body || {}).username || '').trim();
+  const password = String((req.body || {}).password || '').trim();
+  const okUser = safeEqual(username.toLowerCase(), ADMIN_USER.trim().toLowerCase());
+  const okPass = safeEqual(password, ADMIN_PASS.trim());
+  if (!(okUser && okPass)) {
+    console.warn('Login admin gagal: username ' + (okUser ? 'cocok' : 'beda') + ', password ' + (okPass ? 'cocok' : 'beda'));
+    return res.status(401).json({ ok: false, error: 'Username atau password salah.' });
+  }
   res.setHeader('Set-Cookie', cookie('session', tokenOf({ u: username }, 12 * 36e5), 43200));
   res.json({ ok: true });
 });
@@ -294,7 +299,7 @@ const page = (title, body, script) => `<!doctype html><html lang="id"><head><met
 const LOGIN = page('Masuk', `
 <h1>Masuk</h1><p class="muted">Silakan masuk ke akun Anda.</p>
 <form class="box" id="f" autocomplete="on">
-<label for="u">Username</label><input id="u" name="username" autocomplete="username" required>
+<label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
 <div class="err" id="e" role="alert"></div>
 <button type="submit">Masuk</button></form>
