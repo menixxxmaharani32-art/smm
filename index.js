@@ -138,18 +138,28 @@ async function allServices() {
 const sellUnit = (cost, m) => Math.ceil(num(cost) * (1 + m / 100)); // harga jual per 1000
 
 /* ================= API: admin ================= */
+// Rapikan nilai: buang spasi/baris baru, tanda kutip pembungkus (sering ikut tersalin ke Vercel), dan samakan bentuk karakter unicode
+const norm = (v) => {
+  let t = String(v == null ? '' : v).normalize('NFKC').trim();
+  if (t.length >= 2 && /^(["'`“”‘’]).*(["'`“”‘’])$/s.test(t)) t = t.slice(1, -1).trim();
+  return t;
+};
+const envOf = (...names) => { for (const n of names) if (process.env[n] != null && norm(process.env[n]) !== '') return norm(process.env[n]); return ''; };
+
 app.post('/api/login', (req, res) => {
-  const { ADMIN_USER, ADMIN_PASS, SESSION_SECRET } = process.env;
-  if (!ADMIN_USER || !ADMIN_PASS || !SESSION_SECRET)
-    return res.status(500).json({ ok: false, error: 'Environment variable belum diatur di Vercel.' });
+  const ADMIN_USER = envOf('ADMIN_USER', 'ADMIN_USERNAME');
+  const ADMIN_PASS = envOf('ADMIN_PASS', 'ADMIN_PASSWORD');
+  if (!ADMIN_USER || !ADMIN_PASS || !secret())
+    return res.status(500).json({ ok: false, error: 'Environment variable belum diatur di Vercel (ADMIN_USER, ADMIN_PASS, SESSION_SECRET) atau belum di-redeploy.' });
   if (limited(req, 'admin')) return res.status(429).json({ ok: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' });
-  // spasi di awal/akhir diabaikan (umum terjadi saat salin-tempel atau autocomplete HP); username tidak peka huruf besar/kecil
-  const username = String((req.body || {}).username || '').trim();
-  const password = String((req.body || {}).password || '').trim();
-  const okUser = safeEqual(username.toLowerCase(), ADMIN_USER.trim().toLowerCase());
-  const okPass = safeEqual(password, ADMIN_PASS.trim());
+  // username tidak peka huruf besar/kecil; spasi, kutip, dan karakter unicode dinormalkan di kedua sisi
+  const username = norm((req.body || {}).username);
+  const password = norm((req.body || {}).password);
+  const okUser = safeEqual(username.toLowerCase(), ADMIN_USER.toLowerCase());
+  const okPass = safeEqual(password, ADMIN_PASS);
   if (!(okUser && okPass)) {
-    console.warn('Login admin gagal: username ' + (okUser ? 'cocok' : 'beda') + ', password ' + (okPass ? 'cocok' : 'beda'));
+    // hanya tampil di Vercel > Logs; tidak memuat isi username/password
+    console.warn('Login admin gagal: username ' + (okUser ? 'cocok' : 'beda') + ' (env ' + ADMIN_USER.length + ' huruf, input ' + username.length + '), password ' + (okPass ? 'cocok' : 'beda') + ' (env ' + ADMIN_PASS.length + ' huruf, input ' + password.length + ')');
     return res.status(401).json({ ok: false, error: 'Username atau password salah.' });
   }
   res.setHeader('Set-Cookie', cookie('session', tokenOf({ u: username }, 12 * 36e5), 43200));
