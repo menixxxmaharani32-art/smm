@@ -313,6 +313,12 @@ app.post('/api/buyer/status', buyerOnly, run(async (req) => {
   return { status: true, state: String(st) };
 }));
 
+// Contoh data mentah layanan dari Sprint Pedia (untuk mengecek field apa saja yang dikirim API)
+app.get('/api/admin/service-sample', adminOnly, run(async () => ({
+  status: true,
+  data: await rest('services', '?select=id,category,name,data&limit=3'),
+})));
+
 // Pendapatan penjualan = jumlah harga semua pesanan pembeli (hari ini & bulan ini dihitung menurut WIB)
 app.get('/api/admin/revenue', adminOnly, run(async () => {
   let sel = 'price,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0;
@@ -349,18 +355,58 @@ const stGroup = (s) => {
   if (/proc|progress|run/.test(t)) return 'processing';
   return 'pending';
 };
+// Perbarui status pesanan yang belum selesai langsung dari Sprint Pedia
+async function syncOrders(limit) {
+  let rows;
+  try { rows = await rest('orders', '?select=id,status,provider_order_id&provider_order_id=not.is.null&order=id.desc&limit=300'); }
+  catch (e) { return { checked: 0, updated: 0 }; }
+  const todo = rows.filter((o) => ['pending', 'processing'].includes(stGroup(o.status))).slice(0, limit);
+  let updated = 0;
+  await Promise.all(todo.map(async (o) => {
+    try {
+      const d = await provider('status', { id: o.provider_order_id });
+      const st = d && d.status && d.data && typeof d.data === 'object' ? d.data.status : null;
+      if (st && String(st) !== String(o.status)) { await rest('orders', '?id=eq.' + o.id, { method: 'PATCH', body: { status: String(st) } }); updated++; }
+    } catch (e) { /* lewati, dicoba lagi nanti */ }
+  }));
+  return { checked: todo.length, updated };
+}
+let lastSync = 0;
+app.post('/api/admin/orders/sync', adminOnly, run(async () => ({ status: true, ...(await syncOrders(30)) })));
+
+async function tally(filter) {
+  const counts = { pending: 0, processing: 0, success: 0, partial: 0, error: 0 };
+  let total = 0, qsum = 0, qn = 0;
+  const last = [];
+  const tries = ['id,status,quantity,created_at', 'id,status,quantity', 'id,status', 'id']; // jika ada kolom yang belum ada, pakai yang tersedia
+  let ti = 0;
+  for (let off = 0; off < 10000; off += 1000) {
+    let part;
+    try { part = await rest('orders', '?select=' + tries[ti] + '&order=id.desc&limit=1000&offset=' + off + filter); }
+    catch (e) {
+      if (off === 0 && ti < tries.length - 1) { ti++; off -= 1000; continue; }
+      throw e;
+    }
+    part.forEach((o) => {
+      const g = stGroup(o.status);
+      counts[g]++; total++;
+      const q = num(o.quantity);
+      if (q > 0) { qsum += q; qn++; }
+      if (last.length < 3) last.push({ qty: q || null, st: g, at: o.created_at || null });
+    });
+    if (part.length < 1000) break;
+  }
+  return { counts, total, avg: qn ? Math.round(qsum / qn) : 0, last };
+}
 app.get('/api/buyer/stats/:id', buyerOnly, run(async (req) => {
   const id = String(req.params.id || '');
-  const counts = { pending: 0, processing: 0, success: 0, partial: 0, error: 0 };
-  let total = 0;
+  if (Date.now() - lastSync > 60000) { lastSync = Date.now(); await syncOrders(8).catch(() => {}); } // maksimal 1x per menit
   try {
-    for (let off = 0; off < 10000; off += 1000) {
-      const part = await rest('orders', '?select=status&limit=1000&offset=' + off + '&service_id=eq.' + enc(id));
-      part.forEach((o) => { counts[stGroup(o.status)]++; total++; });
-      if (part.length < 1000) break;
-    }
-  } catch (e) { return { status: false, error: 'Statistik belum tersedia.' }; }
-  return { status: true, total, counts };
+    let r = await tally('&service_id=eq.' + enc(id));
+    let scope = 'service';
+    if (!r.total) { r = await tally(''); scope = 'all'; } // layanan belum pernah dipesan: tampilkan statistik semua pesanan
+    return { status: true, total: r.total, counts: r.counts, avg: r.avg, last: r.last, scope };
+  } catch (e) { console.error('stats:', e.message); return { status: false, error: 'Statistik gagal dimuat: ' + e.message.slice(0, 120) }; }
 }));
 
 require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc });

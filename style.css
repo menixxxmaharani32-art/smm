@@ -1,5 +1,5 @@
-:root{--bg:#eef3f5;--surface:#fff;--ink:#0f202a;--muted:#5d727c;--line:#d5e0e4;--accent:#0f766e;--accent2:#115e59;--accent-ink:#fff;--accent-soft:#e0f2f0;--danger:#b42318;--shadow:0 1px 2px rgba(15,32,42,.05),0 8px 24px rgba(15,32,42,.06)}
-@media(prefers-color-scheme:dark){:root{--bg:#0a1418;--surface:#12232a;--ink:#e6f0f2;--muted:#93aab3;--line:#244049;--accent:#2dd4bf;--accent2:#14b8a6;--accent-ink:#06211e;--accent-soft:#123830;--danger:#ff8a7a;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25)}}
+:root{--indigo:#6b7fd7;--bg:#eef3f5;--surface:#fff;--ink:#0f202a;--muted:#5d727c;--line:#d5e0e4;--accent:#0f766e;--accent2:#115e59;--accent-ink:#fff;--accent-soft:#e0f2f0;--danger:#b42318;--shadow:0 1px 2px rgba(15,32,42,.05),0 8px 24px rgba(15,32,42,.06)}
+@media(prefers-color-scheme:dark){:root{--indigo:#9db0ff;--bg:#0a1418;--surface:#12232a;--ink:#e6f0f2;--muted:#93aab3;--line:#244049;--accent:#2dd4bf;--accent2:#14b8a6;--accent-ink:#06211e;--accent-soft:#123830;--danger:#ff8a7a;--shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25)}}
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 "Plus Jakarta Sans",system-ui,sans-serif;min-height:100vh}
@@ -103,6 +103,16 @@ details[open]>summary{color:var(--accent)}
 .st-bad{background:#fee2e2;color:#991b1b}
 #ords .top button{min-height:38px}
 
+.sp{margin-top:16px;border:1px solid var(--indigo);border-radius:14px;overflow:hidden;background:var(--surface)}
+.sp-sec{padding:16px 18px;border-top:1px solid var(--indigo)}
+.sp-sec:first-child{border-top:0}
+.sp-h{margin:0 0 10px;font-size:1.05rem;font-weight:700;color:var(--indigo)}
+.sp-last{--c:#64748b;border-left:3px solid var(--c);padding:2px 0 2px 14px;margin-top:14px}
+.sp-last.sp-success{--c:#16a34a}.sp-last.sp-pending{--c:#d97706}.sp-last.sp-processing{--c:#0284c7}.sp-last.sp-partial{--c:#64748b}.sp-last.sp-error{--c:#dc2626}
+.sp-ago{font-size:.8rem;letter-spacing:.02em;color:var(--muted)}
+.sp-st{color:var(--c);font-weight:600}
+.sp-q{color:var(--indigo)}
+.sp-q .tag{color:var(--ink)}
 .stat-row{display:flex;align-items:center;gap:10px;margin-top:8px;font-size:.95rem}
 .pill{flex:0 0 120px;text-align:center;color:#fff;font-weight:700;border-radius:999px;padding:4px 8px;font-size:.85rem}
 
