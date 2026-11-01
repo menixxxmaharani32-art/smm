@@ -313,13 +313,14 @@ app.post('/api/buyer/status', buyerOnly, run(async (req) => {
 require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc });
 
 /* ================= Halaman ================= */
-const page = (title, body, script) => `<!doctype html><html lang="id"><head><meta charset="utf-8">
+const page = (title, body, script, cls) => `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css"></head><body><main>${body}</main><script>${script}</script></body></html>`;
+<link rel="stylesheet" href="/style.css"></head><body><main class="${cls || ''}">${body}</main><script>${script}</script></body></html>`;
 
 const LOGIN = page('Masuk', `
-<h1>Masuk</h1><p class="muted">Silakan masuk ke akun Anda.</p>
+<div class="brand"><span class="logo">A</span><span>Alz Sosmed</span><span class="badge">Admin</span></div>
+<h1>Masuk Admin</h1><p class="muted">Silakan masuk ke akun Anda.</p>
 <form class="box" id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
@@ -328,11 +329,11 @@ const LOGIN = page('Masuk', `
 <p class="muted" style="margin-top:16px;text-align:center">Belum punya akun? <a href="/#daftar" style="color:var(--accent);font-weight:700">Daftar</a></p>`, `
 document.getElementById('f').onsubmit=async ev=>{ev.preventDefault();const e=document.getElementById('e');e.textContent='';
 try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value})});
-const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`);
+const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`, 'auth');
 
 const ADMIN_PAGE = require('./page-admin');
 const BUYER_PAGE = require('./page-buyer');
-const ADMIN = page(ADMIN_PAGE.title, ADMIN_PAGE.body, ADMIN_PAGE.script);
+const ADMIN = page(ADMIN_PAGE.title, ADMIN_PAGE.body, ADMIN_PAGE.script, 'wide');
 const BUYER = page(BUYER_PAGE.title, BUYER_PAGE.body, BUYER_PAGE.script);
 
 /* ================= Rute halaman ================= */

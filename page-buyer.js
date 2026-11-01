@@ -2,18 +2,20 @@
 module.exports = {
   title: 'Alz Sosmed',
   body: `
+<div class="brand"><span class="logo">A</span><span>Alz Sosmed</span></div>
 <h1 id="ttl">Masuk</h1>
 <p class="muted" id="sub"></p>
 
 <section class="box hide" id="auth">
+<div class="seg" role="group" aria-label="Masuk atau daftar"><button type="button" id="m_in" aria-selected="true">Masuk</button><button type="button" id="m_up" aria-selected="false">Daftar</button></div>
 <form id="af" autocomplete="on">
-<label for="a_user" style="margin-top:0">Username</label><input id="a_user" autocapitalize="none" autocomplete="username" required>
+<label for="a_user">Username</label><input id="a_user" autocapitalize="none" autocomplete="username" required>
 <label for="a_pass">Password</label><input id="a_pass" type="password" autocomplete="current-password" required>
 <p class="muted" id="a_hint" style="margin-top:8px;font-size:.88rem"></p>
 <div class="err" id="a_msg" role="alert"></div>
 <div id="a_ok" role="status" style="color:var(--accent);font-weight:600;font-size:.92rem"></div>
 <button type="submit" id="a_go" style="width:100%">Masuk</button></form>
-<p class="muted" style="margin-top:18px;text-align:center"><span id="a_swt"></span> <a href="#" id="a_swl" style="color:var(--accent);font-weight:700"></a></p></section>
+<p class="muted hide" style="margin-top:18px;text-align:center"><span id="a_swt"></span> <a href="#" id="a_swl" style="color:var(--accent);font-weight:700"></a></p></section>
 
 <div id="app" class="hide">
 <section class="box" id="who"><div class="top"><div><b id="uname"></b><p class="muted" id="ubal"></p></div>
@@ -66,7 +68,9 @@ function setMode(m){mode=m;
  $('#a_hint').textContent=m==='in'?'':'Username 3-20 karakter (huruf kecil, angka, atau garis bawah). Password minimal 6 karakter.';
  $('#a_swt').textContent=m==='in'?'Belum punya akun?':'Sudah punya akun?';
  $('#a_swl').textContent=m==='in'?'Daftar':'Masuk';
+ $('#m_in').setAttribute('aria-selected',String(m==='in'));$('#m_up').setAttribute('aria-selected',String(m==='up'));
  $('#a_msg').textContent='';$('#a_ok').textContent='';head()}
+$('#m_in').onclick=()=>setMode('in');$('#m_up').onclick=()=>setMode('up');
 $('#a_swl').onclick=e=>{e.preventDefault();setMode(mode==='in'?'up':'in')};
 $('#af').onsubmit=async e=>{e.preventDefault();const go=$('#a_go');go.disabled=true;$('#a_msg').textContent='';$('#a_ok').textContent='';
  try{const d=await post('/api/buyer/'+(mode==='in'?'login':'register'),{username:$('#a_user').value,password:$('#a_pass').value});
@@ -92,15 +96,32 @@ function img2url(file,max,q){return new Promise((ok,no)=>{const u=URL.createObje
  im.onload=()=>{const k=Math.min(1,max/Math.max(im.width,im.height));const c=document.createElement('canvas');c.width=Math.round(im.width*k);c.height=Math.round(im.height*k);
   const x=c.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c.width,c.height);x.drawImage(im,0,0,c.width,c.height);URL.revokeObjectURL(u);ok(c.toDataURL('image/jpeg',q))};
  im.onerror=()=>{URL.revokeObjectURL(u);no(new Error('Gambar tidak bisa dibaca.'))};im.src=u})}
+function qrisExt(u){const e=u.slice(11,u.indexOf(';'));return e==='jpeg'?'jpg':(e||'png')}
+function openQris(u){
+ const ov=document.createElement('div');ov.className='lb';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','QRIS');
+ const card=document.createElement('div');card.className='lb-card';
+ const t=document.createElement('b');t.textContent='Scan QRIS untuk deposit';
+ const i=document.createElement('img');i.src=u;i.alt='QRIS';
+ const act=document.createElement('div');act.className='lb-act';
+ const dl=document.createElement('a');dl.className='btn';dl.href=u;dl.download='qris.'+qrisExt(u);dl.textContent='Download QRIS';
+ const cl=document.createElement('button');cl.type='button';cl.className='ghost';cl.textContent='Tutup';
+ const key=e=>{if(e.key==='Escape')close()};
+ function close(){ov.remove();document.body.style.overflow='';document.removeEventListener('keydown',key)}
+ cl.onclick=close;ov.onclick=e=>{if(e.target===ov)close()};document.addEventListener('keydown',key);
+ act.append(dl,cl);card.append(t,i,act);ov.append(card);document.body.append(ov);document.body.style.overflow='hidden';cl.focus()}
 async function loadPay(){const box=$('#pay');
  try{const r=await fetch('/api/buyer/payment');const d=await r.json();box.textContent='';
   if(!d.status||(!d.qris&&!d.dana)){box.textContent='Metode pembayaran belum diatur admin. Hubungi admin.';return}
-  if(d.qris){const i=document.createElement('img');i.src=d.qris;i.alt='QRIS';i.style.cssText='max-width:100%;border-radius:12px;background:#fff;margin-top:12px';box.append(i)}
-  if(d.dana){const p=document.createElement('p');p.className='muted';p.style.marginTop='14px';p.textContent='Dana'+(d.dana_name?' a.n. '+d.dana_name:'');
+  if(d.qris){const q=document.createElement('button');q.type='button';q.className='qris';q.setAttribute('aria-label','Perbesar QRIS');
+   const i=document.createElement('img');i.src=d.qris;i.alt='QRIS';q.append(i);q.onclick=()=>openQris(d.qris);
+   const h=document.createElement('p');h.className='muted qris-hint';h.textContent='Ketuk QRIS untuk memperbesar';
+   const a=document.createElement('a');a.className='btn qris-dl';a.href=d.qris;a.download='qris.'+qrisExt(d.qris);a.textContent='Download QRIS';
+   box.append(q,h,a)}
+  if(d.dana){const dn=document.createElement('div');dn.className='dana';const p=document.createElement('p');p.className='muted';p.textContent='Dana'+(d.dana_name?' a.n. '+d.dana_name:'');
    const n=document.createElement('div');n.className='total';n.textContent=d.dana;
    const c=document.createElement('button');c.type='button';c.className='ghost';c.textContent='Salin nomor';
    c.onclick=async()=>{try{await navigator.clipboard.writeText(d.dana.replace(/[^0-9+]/g,''));c.textContent='Tersalin'}catch{c.textContent='Salin manual'}};
-   box.append(p,n,c)}}
+   dn.append(p,n,c);box.append(dn)}}
  catch{box.textContent='Gagal memuat metode pembayaran.'}}
 const DST={pending:['Menunggu persetujuan',''],approved:['Disetujui','var(--accent)'],rejected:['Ditolak','var(--danger)']};
 async function loadDeposits(){const box=$('#dlist');
@@ -135,8 +156,11 @@ function pickPlat(p){document.querySelectorAll('.chip').forEach(c=>c.setAttribut
 function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');
  const list=SV.filter(x=>x.category===c);$('#cmsg').textContent=list.length+' layanan';
  list.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='svc';b.setAttribute('aria-pressed','false');
-  const t=document.createElement('b');t.textContent=x.name;const m=document.createElement('span');m.className='muted';
-  m.textContent=rp(x.price)+' per 1000 | min '+x.min+' | maks '+x.max;b.append(t,m);
+  const t=document.createElement('b');t.textContent=x.name;const m=document.createElement('span');m.className='meta';
+  const pr=document.createElement('span');pr.className='price';pr.textContent=rp(x.price)+' / 1000';
+  const mn=document.createElement('span');mn.className='tag';mn.textContent='Min '+x.min;
+  const mx=document.createElement('span');mx.className='tag';mx.textContent='Maks '+x.max;
+  m.append(pr,mn,mx);b.append(t,m);
   b.onclick=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};box.append(b)})}
 function choose(x){sel=x;$('#bf').classList.remove('hide');$('#bname').textContent=x.name;$('#binfo').textContent='Jumlah '+x.min+' sampai '+x.max;
  $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();$('#bf').scrollIntoView({behavior:'smooth',block:'nearest'})}
