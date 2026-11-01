@@ -261,10 +261,13 @@ app.get('/api/buyer/me', buyerOnly, run(async (req) => {
   const [u] = await rest('users', '?select=username,balance&id=eq.' + enc(req.buyerId));
   return u ? { status: true, username: u.username, balance: num(u.balance) } : { status: false, error: 'Akun tidak ditemukan.' };
 }));
-app.get('/api/buyer/orders', buyerOnly, run(async (req) => ({
-  status: true,
-  data: await rest('orders', '?select=id,target,price&order=id.desc&limit=20&user_id=eq.' + enc(req.buyerId)),
-})));
+app.get('/api/buyer/orders', buyerOnly, run(async (req) => {
+  const tail = '&order=id.desc&limit=20&user_id=eq.' + enc(req.buyerId);
+  let data;
+  try { data = await rest('orders', '?select=id,service_name,target,quantity,price,status' + tail); }
+  catch (e) { data = await rest('orders', '?select=id,target,price' + tail); } // cadangan jika kolom belum ada
+  return { status: true, data };
+}));
 
 // Saldo dipotong dulu (atomik); jika provider menolak, saldo dikembalikan.
 app.post('/api/buyer/order', buyerOnly, run(async (req) => {
@@ -308,6 +311,30 @@ app.post('/api/buyer/status', buyerOnly, run(async (req) => {
   if (!st) return { status: false, error: 'Status belum tersedia.' };
   await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { status: String(st) } });
   return { status: true, state: String(st) };
+}));
+
+// Statistik pesanan per layanan (dihitung dari pesanan di web ini)
+const stGroup = (s) => {
+  const t = String(s || '').toLowerCase();
+  if (!t || /pend|wait/.test(t)) return 'pending';
+  if (/part/.test(t)) return 'partial';
+  if (/succ|complet|sukses|selesai|done/.test(t)) return 'success';
+  if (/err|fail|gagal|cancel|refund|reject/.test(t)) return 'error';
+  if (/proc|progress|run/.test(t)) return 'processing';
+  return 'pending';
+};
+app.get('/api/buyer/stats/:id', buyerOnly, run(async (req) => {
+  const id = String(req.params.id || '');
+  const counts = { pending: 0, processing: 0, success: 0, partial: 0, error: 0 };
+  let total = 0;
+  try {
+    for (let off = 0; off < 10000; off += 1000) {
+      const part = await rest('orders', '?select=status&limit=1000&offset=' + off + '&service_id=eq.' + enc(id));
+      part.forEach((o) => { counts[stGroup(o.status)]++; total++; });
+      if (part.length < 1000) break;
+    }
+  } catch (e) { return { status: false, error: 'Statistik belum tersedia.' }; }
+  return { status: true, total, counts };
 }));
 
 require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc });

@@ -32,13 +32,13 @@ module.exports = {
 
 <section class="box"><h2>Layanan</h2><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
 
-<form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p>
+<form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p><div id="stats"></div>
 <label for="b_link">Link target</label><input id="b_link" inputmode="url" autocapitalize="none" placeholder="https://">
 <label for="b_qty">Jumlah</label><input id="b_qty" inputmode="numeric">
 <p class="muted" style="margin-top:18px">Total bayar</p><div class="total" id="total">Rp 0</div>
 <div class="err" id="bmsg" role="status"></div><button type="submit" id="bgo" style="width:100%">Pesan</button></form>
 
-<section class="box" id="ords"><h2>Pesanan saya</h2><div id="olist"></div></section>
+<section class="box" id="ords"><div class="top"><h2>Pesanan saya</h2><button class="ghost" id="orf" type="button">Segarkan</button></div><div id="olist"></div></section>
 </div>
 
 <div data-p="dp" class="hide">
@@ -154,7 +154,7 @@ function pickPlat(p){document.querySelectorAll('.chip').forEach(c=>c.setAttribut
  const cats=[...new Set(SV.filter(x=>plat(x.category)===p).map(x=>x.category))];
  const s=$('#cat');s.textContent='';cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.append(o)});s.disabled=false;showSvs()}
 function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');
- const list=SV.filter(x=>x.category===c);$('#cmsg').textContent=list.length+' layanan';
+ const list=SV.filter(x=>x.category===c).sort((a,b)=>(Number(a.price)||1e18)-(Number(b.price)||1e18));$('#cmsg').textContent=list.length+' layanan';
  list.forEach(x=>{const b=document.createElement('button');b.type='button';b.className='svc';b.setAttribute('aria-pressed','false');
   const t=document.createElement('b');t.textContent=x.name;const m=document.createElement('span');m.className='meta';
   const pr=document.createElement('span');pr.className='price';pr.textContent=rp(x.price)+' / 1000';
@@ -163,7 +163,17 @@ function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='
   m.append(pr,mn,mx);b.append(t,m);
   b.onclick=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};box.append(b)})}
 function choose(x){sel=x;$('#bf').classList.remove('hide');$('#bname').textContent=x.name;$('#binfo').textContent='Jumlah '+x.min+' sampai '+x.max;
- $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();$('#bf').scrollIntoView({behavior:'smooth',block:'nearest'})}
+ $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();loadStats(x);$('#bf').scrollIntoView({behavior:'smooth',block:'nearest'})}
+const SC=[['pending','Pending','#d97706'],['processing','Processing','#0284c7'],['success','Success','#16a34a'],['partial','Partial','#64748b'],['error','Error','#dc2626']];
+function statRow(label,color,text){const r=document.createElement('div');r.className='stat-row';const p=document.createElement('span');p.className='pill';p.style.background=color;p.textContent=label;const t=document.createElement('span');t.textContent=text;r.append(p,t);return r}
+async function loadStats(x){const box=$('#stats');box.textContent='';
+ try{const r=await fetch('/api/buyer/stats/'+encodeURIComponent(x.id));const d=await r.json();
+  if(!sel||sel.id!==x.id)return;box.textContent='';
+  if(!d.status||!d.total){const p=document.createElement('p');p.className='muted';p.style.marginTop='12px';p.textContent='Belum ada data pesanan untuk layanan ini.';box.append(p);return}
+  const h=document.createElement('p');h.style.cssText='font-weight:700;margin-top:14px';h.textContent='Statistik Pesanan';
+  box.append(h,statRow('Total Pesanan','#6b7fd7',d.total+' pesanan'));
+  SC.forEach(k=>{const c=d.counts[k[0]]||0;box.append(statRow(k[1],k[2],(+(c*100/d.total).toFixed(2))+'% ('+c+' pesanan)'))})}
+ catch{}}
 function calc(){if(!sel)return;const q=Number($('#b_qty').value)||0;tot=Math.ceil(q*sel.price/1000);$('#total').textContent=rp(tot);
  $('#bmsg').textContent=(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':''}
 $('#cat').onchange=showSvs;$('#b_qty').oninput=calc;
@@ -185,14 +195,39 @@ $('#bf').onsubmit=async e=>{e.preventDefault();
   else $('#bmsg').textContent=d.error||'Gagal memesan.'}
  catch{$('#bmsg').textContent='Tidak bisa terhubung ke server.'}};
 
+function stInfo(s){const t=String(s||'').toLowerCase();
+ if(!t||t.indexOf('pend')>-1||t.indexOf('wait')>-1)return['Pending','pending'];
+ if(t.indexOf('part')>-1)return['Sebagian','part'];
+ if(t.indexOf('succ')>-1||t.indexOf('complet')>-1||t.indexOf('sukses')>-1||t.indexOf('selesai')>-1||t.indexOf('done')>-1)return['Sukses','ok'];
+ if(t.indexOf('err')>-1||t.indexOf('fail')>-1||t.indexOf('gagal')>-1||t.indexOf('cancel')>-1||t.indexOf('refund')>-1||t.indexOf('reject')>-1)return['Error','bad'];
+ if(t.indexOf('proc')>-1||t.indexOf('progress')>-1||t.indexOf('run')>-1)return['Diproses','proc'];
+ return[String(s),'pending']}
+function setBadge(el,s){const i=stInfo(s);el.textContent=i[0];el.className='st st-'+i[1];return i[1]!=='pending'&&i[1]!=='proc'}
+async function checkOrder(id,badge,btn){if(btn){btn.disabled=true;btn.textContent='Mengecek…'}
+ let fin=false;
+ try{const d=await post('/api/buyer/status',{id});
+  if(d.status){fin=setBadge(badge,d.state);if(btn){if(fin)btn.remove();else{btn.disabled=false;btn.textContent='Cek status'}}}
+  else if(btn){btn.disabled=false;btn.textContent='Cek status'}}
+ catch{if(btn){btn.disabled=false;btn.textContent='Cek status'}}
+ return fin}
+let oseq=0;
 async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)return;const d=await r.json();const box=$('#olist');box.textContent='';
+ const mine=++oseq;
  if(!d.data||!d.data.length){box.textContent='Belum ada pesanan.';return}
+ const todo=[];
  d.data.forEach(o=>{const row=document.createElement('div');row.className='ord';
-  const l1=document.createElement('p');l1.className='muted';l1.textContent='Link target';
-  const g=document.createElement('p');g.className='pre';g.style.fontWeight='600';g.textContent=o.target;
-  const l2=document.createElement('p');l2.className='muted';l2.style.marginTop='8px';l2.textContent='Total bayar';
-  const v=document.createElement('p');v.style.fontWeight='700';v.textContent=rp(o.price);
-  row.append(l1,g,l2,v);box.append(row)})}
+  const hd=document.createElement('div');hd.className='ohead';
+  const nm=document.createElement('b');nm.textContent=o.service_name||'Pesanan #'+o.id;
+  const bg=document.createElement('span');const fin=setBadge(bg,o.status);hd.append(nm,bg);
+  const g=document.createElement('p');g.className='pre muted';g.style.marginTop='6px';g.textContent=o.target;
+  const v=document.createElement('p');v.style.cssText='font-weight:700;margin-top:6px';
+  v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
+  row.append(hd,g,v);
+  if(!fin){const c=document.createElement('button');c.type='button';c.className='ghost';c.textContent='Cek status';
+   c.onclick=()=>checkOrder(o.id,bg,c);row.append(c);todo.push([o.id,bg,c])}
+  box.append(row)});
+ for(const t of todo.slice(0,10)){if(mine!==oseq)break;await checkOrder(t[0],t[1],t[2])}}
+$('#orf').onclick=loadOrders;
 
 setMode(location.hash==='#daftar'?'up':'in');
 loadMe();`,
