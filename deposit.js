@@ -1,7 +1,7 @@
 // Deposit saldo (pembeli) + pengaturan pembayaran dan persetujuan deposit (admin)
 module.exports = function mountDeposit(app, d) {
   const { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc } = d;
-  const MIN = 10000;
+  const MIN = 1000;
   const MAX = 10000000;
   const IMG = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
   const validImg = (s, max) => typeof s === 'string' && s.length <= max && IMG.test(s);
@@ -19,11 +19,12 @@ module.exports = function mountDeposit(app, d) {
   app.post('/api/buyer/deposit', buyerOnly, run(async (req) => {
     const amount = parseInt((req.body || {}).amount, 10);
     const proof = (req.body || {}).proof;
-    if (!(amount >= MIN && amount <= MAX)) return { status: false, error: 'Jumlah deposit minimal Rp 10.000 dan maksimal Rp 10.000.000.' };
-    if (proof && !validImg(proof, 600000)) return { status: false, error: 'Bukti transfer harus berupa foto (JPG, PNG, atau WEBP) yang tidak terlalu besar.' };
+    if (!(amount >= MIN && amount <= MAX)) return { status: false, error: 'Jumlah deposit minimal Rp 1.000 dan maksimal Rp 10.000.000.' };
+    if (!proof) return { status: false, error: 'Bukti transfer wajib diunggah.' };
+    if (!validImg(proof, 600000)) return { status: false, error: 'Bukti transfer harus berupa foto (JPG, PNG, atau WEBP) yang tidak terlalu besar.' };
     const pending = await rest('deposits', '?select=id&status=eq.pending&user_id=eq.' + enc(req.buyerId));
     if (pending.length >= 3) return { status: false, error: 'Anda masih punya 3 deposit yang menunggu persetujuan. Tunggu admin memprosesnya.' };
-    await rest('deposits', '', { method: 'POST', body: { user_id: req.buyerId, amount, proof: proof || null, has_proof: !!proof } });
+    await rest('deposits', '', { method: 'POST', body: { user_id: req.buyerId, amount, proof, has_proof: true } });
     return { status: true };
   }));
 

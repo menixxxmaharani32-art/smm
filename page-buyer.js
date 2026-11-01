@@ -44,8 +44,8 @@ module.exports = {
 <p class="muted" style="margin-top:6px">Transfer lewat QRIS atau Dana, lalu isi form di bawah. Saldo masuk setelah admin menyetujui.</p>
 <div id="pay"></div></section>
 <form class="box" id="df" autocomplete="off"><h2>Ajukan deposit</h2>
-<label for="d_amt">Jumlah deposit (Rp)</label><input id="d_amt" inputmode="numeric" placeholder="Minimal 10000">
-<label for="d_proof">Bukti transfer (foto, disarankan)</label><input id="d_proof" type="file" accept="image/*">
+<label for="d_amt">Jumlah deposit (Rp)</label><input id="d_amt" inputmode="numeric" placeholder="Minimal 1000">
+<label for="d_proof">Bukti transfer (foto, wajib)</label><input id="d_proof" type="file" accept="image/*">
 <div class="err" id="dmsg" role="status"></div><button type="submit" id="dgo" style="width:100%">Kirim deposit</button></form>
 <section class="box"><h2>Riwayat deposit</h2><div id="dlist" style="margin-top:8px"></div></section>
 </div>
@@ -113,9 +113,10 @@ async function loadDeposits(){const box=$('#dlist');
    row.append(v,m,s);box.append(row)})}catch{}}
 $('#df').onsubmit=async e=>{e.preventDefault();const m=$('#dmsg');m.style.color='';
  const amt=parseInt($('#d_amt').value,10)||0;
- if(amt<10000){m.textContent='Jumlah deposit minimal Rp 10.000.';return}
+ if(amt<1000){m.textContent='Jumlah deposit minimal Rp 1.000.';return}
+ if(!$('#d_proof').files[0]){m.textContent='Bukti transfer wajib diunggah.';return}
  const go=$('#dgo');go.disabled=true;m.textContent='Mengirim…';
- try{const f=$('#d_proof').files[0];const b={amount:amt};if(f)b.proof=await img2url(f,1000,.7);
+ try{const f=$('#d_proof').files[0];const b={amount:amt,proof:await img2url(f,1000,.7)};
   const d=await post('/api/buyer/deposit',b);
   if(d.status){m.style.color='var(--accent)';m.textContent='Deposit terkirim. Saldo masuk setelah admin menyetujui.';$('#d_amt').value='';$('#d_proof').value='';loadDeposits()}
   else m.textContent=d.error||'Gagal mengirim deposit.'}
