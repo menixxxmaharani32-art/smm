@@ -300,13 +300,14 @@ const page = (title, body, script) => `<!doctype html><html lang="id"><head><met
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css"></head><body><main>${body}</main><script>${script}</script></body></html>`;
 
-const LOGIN = page('Masuk admin', `
-<h1>Masuk admin</h1><p class="muted">Kelola panel SMM dan koneksi provider.</p>
+const LOGIN = page('Masuk', `
+<h1>Masuk</h1><p class="muted">Silakan masuk ke akun Anda.</p>
 <form class="box" id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" required>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
 <div class="err" id="e" role="alert"></div>
-<button type="submit">Masuk</button></form>`, `
+<button type="submit">Masuk</button></form>
+<p class="muted" style="margin-top:16px;text-align:center">Belum punya akun? <a href="/#auth" style="color:var(--accent);font-weight:700">Daftar</a></p>`, `
 document.getElementById('f').onsubmit=async ev=>{ev.preventDefault();const e=document.getElementById('e');e.textContent='';
 try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value})});
 const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`);
