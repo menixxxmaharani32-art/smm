@@ -150,3 +150,8 @@ details[open]>summary{color:var(--accent)}
  .box{padding:16px}
  .saldo{font-size:2rem}
 }
+
+/* Masuk vs Daftar: tampilan dibedakan */
+#auth{border-top:4px solid var(--indigo)}
+#auth.up{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-soft),var(--surface) 160px)}
+#a_ok:not(:empty){margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent)}

@@ -11,11 +11,12 @@ module.exports = {
 <form id="af" autocomplete="on">
 <label for="a_user">Username</label><input id="a_user" autocapitalize="none" autocomplete="username" required>
 <label for="a_pass">Password</label><input id="a_pass" type="password" autocomplete="current-password" required>
+<div id="a_p2" class="hide"><label for="a_pass2">Ulangi password</label><input id="a_pass2" type="password" autocomplete="new-password"></div>
 <p class="muted" id="a_hint" style="margin-top:8px;font-size:.88rem"></p>
 <div class="err" id="a_msg" role="alert"></div>
 <div id="a_ok" role="status" style="color:var(--accent);font-weight:600;font-size:.92rem"></div>
 <button type="submit" id="a_go" style="width:100%">Masuk</button></form>
-<p class="muted hide" style="margin-top:18px;text-align:center"><span id="a_swt"></span> <a href="#" id="a_swl" style="color:var(--accent);font-weight:700"></a></p></section>
+<p class="muted" style="margin-top:18px;text-align:center"><span id="a_swt"></span> <a href="#" id="a_swl" style="color:var(--accent);font-weight:700"></a></p></section>
 
 <div id="app" class="hide">
 <section class="box" id="who"><div class="top"><div><b id="uname"></b><p class="muted" id="ubal"></p></div>
@@ -74,13 +75,15 @@ function setMode(m){mode=m;
  $('#a_swt').textContent=m==='in'?'Belum punya akun?':'Sudah punya akun?';
  $('#a_swl').textContent=m==='in'?'Daftar':'Masuk';
  $('#m_in').setAttribute('aria-selected',String(m==='in'));$('#m_up').setAttribute('aria-selected',String(m==='up'));
+ $('#a_p2').classList.toggle('hide',m==='in');$('#a_pass2').required=(m==='up');$('#a_pass2').value='';
+ $('#auth').classList.toggle('up',m==='up');
  $('#a_msg').textContent='';$('#a_ok').textContent='';head()}
 $('#m_in').onclick=()=>setMode('in');$('#m_up').onclick=()=>setMode('up');
 $('#a_swl').onclick=e=>{e.preventDefault();setMode(mode==='in'?'up':'in')};
-$('#af').onsubmit=async e=>{e.preventDefault();const go=$('#a_go');go.disabled=true;$('#a_msg').textContent='';$('#a_ok').textContent='';
+$('#af').onsubmit=async e=>{e.preventDefault();if(mode==='up'&&$('#a_pass').value!==$('#a_pass2').value){$('#a_ok').textContent='';$('#a_msg').textContent='Password dan ulangi password tidak sama.';$('#a_pass2').focus();return}const go=$('#a_go');go.disabled=true;$('#a_msg').textContent='';$('#a_ok').textContent='';
  try{const d=await post('/api/buyer/'+(mode==='in'?'login':'register'),{username:$('#a_user').value,password:$('#a_pass').value});
   if(!d.status)$('#a_msg').textContent=d.error||'Gagal.';
-  else if(mode==='up'){$('#a_pass').value='';setMode('in');$('#a_ok').textContent='Akun Anda berhasil terdaftar. Silakan login.';$('#a_pass').focus()}
+  else if(mode==='up'){$('#a_pass').value='';setMode('in');$('#a_ok').textContent='Akun berhasil terdaftar. Silakan login.';$('#a_pass').focus()}
   else{$('#a_pass').value='';await loadMe()}}
  catch{$('#a_msg').textContent='Tidak bisa terhubung ke server.'}
  go.disabled=false};
