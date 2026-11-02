@@ -375,7 +375,7 @@ app.get('/api/admin/services/search', adminOnly, run(async (req) => {
 
 // Pendapatan penjualan = jumlah harga semua pesanan pembeli (hari ini & bulan ini dihitung menurut WIB)
 app.get('/api/admin/revenue', adminOnly, run(async () => {
-  let sel = 'price,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0, daily = {};
+  let sel = 'price,status,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0, daily = {};
   const wib = (t) => new Date(new Date(t).getTime() + 7 * 36e5).toISOString();
   const nowW = wib(Date.now());
   const dayKey = nowW.slice(0, 10), monKey = nowW.slice(0, 7);
@@ -383,10 +383,11 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
     let part;
     try { part = await rest('orders', '?select=' + sel + '&order=id.asc&limit=1000&offset=' + off); }
     catch (e) {
-      if (off === 0 && hasDate) { hasDate = false; sel = 'price'; off -= 1000; continue; }
+      if (off === 0 && hasDate) { hasDate = false; sel = 'price,status'; off -= 1000; continue; }
       throw e;
     }
     for (const o of part) {
+      if (stGroup(o.status) !== 'success') continue; // pendapatan hanya dari pesanan yang sukses
       const p = num(o.price);
       total += p; count++;
       if (hasDate && o.created_at) {

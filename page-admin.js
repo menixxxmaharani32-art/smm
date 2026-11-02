@@ -131,9 +131,9 @@ async function loadRevenue(){
   big($('#rmonth'),m[0]);$('#rmonthsub').textContent=m[1]+' pesanan · Bulan lalu '+rp(pm[0]);
   big($('#rtoday'),td[0]);$('#rtodaysub').textContent=td[1]+' pesanan'+NL+'Kemarin '+rp(yd[0]);
   big($('#rweek'),w[0]);$('#rweeksub').textContent=w[1]+' pesanan'+NL+'Minggu lalu '+rp(pw[0]);
-  $('#rnote').textContent='Total harga pesanan pembeli (waktu WIB).';drawRev()}
+  $('#rnote').textContent='Hanya pesanan yang sukses (waktu WIB).';drawRev()}
  catch{}}
-function syncAll(){return post('/api/admin/orders/sync').then(d=>{if(d&&d.status)$('#qcount').textContent=d.queued||0}).catch(()=>{})}
+function syncAll(){return post('/api/admin/orders/sync').then(d=>{if(d&&d.status)$('#qcount').textContent=d.queued||0;loadRevenue()}).catch(()=>{})}
 $('#refresh').onclick=()=>{balance();syncAll();loadRevenue()};
 async function init(){const d=await api('/api/settings');
  $('#secret_key').placeholder=d.secret_key||'Belum diisi';$('#api_key').placeholder=d.api_key||'Belum diisi';$('#markup').value=d.markup_percent||'0';
