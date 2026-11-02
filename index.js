@@ -395,20 +395,31 @@ app.get('/api/admin/services/search', adminOnly, run(async (req) => {
 
 // Pendapatan penjualan = jumlah harga semua pesanan pembeli (hari ini & bulan ini dihitung menurut WIB)
 app.get('/api/admin/revenue', adminOnly, run(async () => {
-  let sel = 'price,status,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0, daily = {};
+  // "Pendapatan" = UNTUNG: harga jual ke pembeli dikurangi modal di Sprint Pedia (hanya pesanan sukses).
+  // Modal dihitung dari harga layanan saat ini x jumlah; jika data layanan/jumlah tidak ada, diperkirakan dari markup.
+  const mk = num((await getSettings()).markup_percent);
+  const cost = {};
+  try { (await allServices()).forEach((x) => { cost[String(x.id)] = num(x.price); }); } catch (e) { /* pakai perkiraan markup */ }
+  const profitOf = (o) => {
+    const p = num(o.price), per = cost[String(o.service_id)], q = num(o.quantity);
+    const modal = per !== undefined && q > 0 ? (per * q) / 1000 : p / (1 + mk / 100);
+    return p - modal;
+  };
+  const sels = ['price,status,created_at,service_id,quantity', 'price,status,created_at', 'price,status'];
+  let si = 0, hasDate = true, total = 0, today = 0, month = 0, count = 0, daily = {};
   const wib = (t) => new Date(new Date(t).getTime() + 7 * 36e5).toISOString();
   const nowW = wib(Date.now());
   const dayKey = nowW.slice(0, 10), monKey = nowW.slice(0, 7);
   for (let off = 0; off < 100000; off += 1000) {
     let part;
-    try { part = await rest('orders', '?select=' + sel + '&order=id.asc&limit=1000&offset=' + off); }
+    try { part = await rest('orders', '?select=' + sels[si] + '&order=id.asc&limit=1000&offset=' + off); }
     catch (e) {
-      if (off === 0 && hasDate) { hasDate = false; sel = 'price,status'; off -= 1000; continue; }
+      if (off === 0 && si < sels.length - 1) { si++; hasDate = si < 2; off -= 1000; continue; }
       throw e;
     }
     for (const o of part) {
-      if (stGroup(o.status) !== 'success') continue; // pendapatan hanya dari pesanan yang sukses
-      const p = num(o.price);
+      if (stGroup(o.status) !== 'success') continue; // hanya pesanan yang sukses
+      const p = profitOf(o);
       total += p; count++;
       if (hasDate && o.created_at) {
         const w = wib(o.created_at);
@@ -418,7 +429,8 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
     }
     if (part.length < 1000) break;
   }
-  return { status: true, total, today, month, orders: count, has_date: hasDate, daily, now: dayKey };
+  Object.keys(daily).forEach((k) => { daily[k][0] = Math.round(daily[k][0]); });
+  return { status: true, total: Math.round(total), today: Math.round(today), month: Math.round(month), orders: count, has_date: hasDate, daily, now: dayKey };
 }));
 
 // Statistik pesanan per layanan (dihitung dari pesanan di web ini)
@@ -558,6 +570,24 @@ app.post('/api/buyer/refill', buyerOnly, run(async (req) => {
   console.error('Refill ditolak:', JSON.stringify(d));
   const why = d && (typeof d.data === 'string' ? d.data : (d.error || d.message));
   return { status: false, error: why ? 'Refill ditolak: ' + String(why).slice(0, 160) : 'Refill ditolak. Layanan ini mungkin tidak mendukung refill atau belum waktunya.' };
+}));
+
+/* ================= Nomor WhatsApp bantuan ================= */
+// Disimpan di tabel settings (kunci "wa_number"), tampil di halaman pembeli sebagai tombol chat
+const normWa = (v) => {
+  let d = String(v == null ? '' : v).replace(/\D/g, '');
+  if (!d) return '';
+  if (d.startsWith('0')) d = '62' + d.slice(1);
+  else if (d.startsWith('8')) d = '62' + d;
+  return d.length >= 9 && d.length <= 15 ? d : null;
+};
+app.get('/api/wa', run(async () => ({ status: true, wa: (await getSettings()).wa_number || '' })));
+app.get('/api/admin/wa', adminOnly, run(async () => ({ status: true, wa: (await getSettings()).wa_number || '' })));
+app.post('/api/admin/wa', adminOnly, run(async (req, res) => {
+  const v = normWa((req.body || {}).wa);
+  if (v === null) { res.status(400); return { status: false, error: 'Nomor WhatsApp tidak valid. Contoh: 08123456789.' }; }
+  await saveSettings({ wa_number: v });
+  return { status: true, wa: v };
 }));
 
 require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc });

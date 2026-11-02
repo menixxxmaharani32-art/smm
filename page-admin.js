@@ -72,6 +72,10 @@ module.exports = {
 <label for="api_key">API key</label><input id="api_key" type="password" autocomplete="off">
 <label for="markup">Markup harga untuk pembeli (%)</label><input id="markup" inputmode="decimal">
 <div class="err" id="msg" role="status"></div><button type="submit">Simpan pengaturan</button></form>
+<form class="box" id="waf" autocomplete="off"><h2>Kontak bantuan WhatsApp</h2>
+<p class="muted" style="margin-top:6px">Tampil di halaman pembeli sebagai &ldquo;Butuh bantuan? Chat Alzz Pedia&rdquo;. Kosongkan lalu simpan untuk menyembunyikan.</p>
+<label for="wa_no">Nomor WhatsApp</label><input id="wa_no" inputmode="tel" placeholder="08xxxxxxxxxx">
+<div class="err" id="wa_msg" role="status"></div><button type="submit">Simpan nomor</button></form>
 <section class="box"><h2>Layanan untuk pembeli</h2>
 <p class="muted" style="margin-top:6px">Impor daftar layanan dari Sprint Pedia agar tampil di halaman pembeli.</p>
 <button type="button" id="loadsv">Impor semua layanan</button><div class="err" id="svmsg" role="status"></div></section></div>`,
@@ -152,7 +156,7 @@ async function loadRevenue(){
   big($('#rmonth'),m[0]);$('#rmonthsub').textContent=m[1]+' pesanan · Bulan lalu '+rp(pm[0]);
   big($('#rtoday'),td[0]);$('#rtodaysub').textContent=td[1]+' pesanan'+NL+'Kemarin '+rp(yd[0]);
   big($('#rweek'),w[0]);$('#rweeksub').textContent=w[1]+' pesanan'+NL+'Minggu lalu '+rp(pw[0]);
-  $('#rnote').textContent='Hanya pesanan yang sukses (waktu WIB).';drawRev()}
+  $('#rnote').textContent='Dihitung dari untung bersih (harga jual dikurangi modal Sprint Pedia). Hanya pesanan yang sukses (waktu WIB).';drawRev()}
  catch{}}
 function syncAll(){return post('/api/admin/orders/sync').then(d=>{if(d&&d.status)$('#qcount').textContent=d.queued||0;loadRevenue()}).catch(()=>{})}
 $('#refresh').onclick=()=>{balance();syncAll();loadRevenue()};
@@ -163,6 +167,11 @@ $('#form').onsubmit=async e=>{e.preventDefault();
  const d=await post('/api/settings',{secret_key:$('#secret_key').value.trim(),api_key:$('#api_key').value.trim(),markup_percent:$('#markup').value.trim()});
  say($('#msg'),d.ok,d.ok?'Pengaturan tersimpan.':errOf(d));
  if(d.ok){$('#secret_key').value='';$('#api_key').value='';init()}};
+async function loadWa(){try{const d=await api('/api/admin/wa');if(d.status)$('#wa_no').value=d.wa||''}catch{}}
+$('#waf').onsubmit=async e=>{e.preventDefault();
+ const d=await post('/api/admin/wa',{wa:$('#wa_no').value.trim()});
+ say($('#wa_msg'),d.status,d.status?(d.wa?'Tersimpan. Pembeli bisa chat ke +'+d.wa+'.':'Nomor dihapus. Tombol bantuan disembunyikan.'):errOf(d));
+ if(d.status)$('#wa_no').value=d.wa||''};
 $('#loadsv').onclick=async()=>{const m=$('#svmsg');say(m,true,'Mengimpor semua layanan, tunggu sebentar…');
  try{const d=await post('/api/services/sync');d.status?say(m,true,d.count+' layanan berhasil diimpor.'):say(m,false,errOf(d))}catch{}};
 
@@ -253,5 +262,5 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
-init();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();`,
+init();loadWa();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();`,
 };

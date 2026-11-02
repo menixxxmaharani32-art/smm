@@ -66,7 +66,8 @@ module.exports = {
 <div class="err" id="pmsg" role="status"></div><button type="submit" id="pgo" style="width:100%">Kirim bukti transfer</button></form>
 </div>
 </div>
-</div>`,
+</div>
+<p class="help hide" id="help">Butuh bantuan? <a id="help_a" href="#" target="_blank" rel="noopener">Chat Alzz Pedia</a></p>`,
   script: `
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
@@ -296,6 +297,7 @@ async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)re
  for(const t of todo.slice(0,10)){if(mine!==oseq)break;await checkOrder(t[0],t[1],t[2],t[3])}}
 $('#orf').onclick=loadOrders;
 
+fetch('/api/wa').then(r=>r.json()).then(d=>{if(d&&d.status&&d.wa){$('#help_a').href='https://wa.me/'+d.wa;$('#help').classList.remove('hide')}}).catch(()=>{});
 setMode(location.hash==='#daftar'?'up':'in');
 loadMe();`,
 };
