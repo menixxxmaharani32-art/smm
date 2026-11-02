@@ -266,6 +266,7 @@ app.post('/api/buyer/register', run(async (req, res) => {
   if (password.length < 6 || password.length > 72) return { status: false, error: 'Password minimal 6 karakter.' };
   try {
     await rest('users', '', { method: 'POST', body: { username, password_hash: hashPw(password) } });
+    await notify('user', '👤 Pembeli baru', username + ' baru saja mendaftar.', '/admin#us');
     return { status: true }; // tidak otomatis login: pembeli diminta masuk sendiri
   } catch (e) {
     if (e.status === 409) return { status: false, error: 'Username sudah dipakai.' };
@@ -295,6 +296,15 @@ app.get('/api/buyer/orders', buyerOnly, run(async (req) => {
   catch (e) { data = await rest('orders', '?select=id,target,price' + tail); } // cadangan jika kolom belum ada
   return { status: true, data };
 }));
+
+// Notifikasi pesanan baru ke HP admin (error apa pun diabaikan, tidak mengganggu pesanan)
+async function notifyOrder(uid, serviceName, qty, total, queued) {
+  try {
+    const [u] = await rest('users', '?select=username&id=eq.' + enc(uid));
+    await notify('order', '🛒 Pesanan baru' + (queued ? ' (antre)' : ''),
+      ((u && u.username) || 'Pembeli') + ' memesan ' + serviceName + ' x' + qty + ' (Rp ' + Math.round(total).toLocaleString('id-ID') + ')', '/admin#ord');
+  } catch (e) { console.error('notifyOrder:', e.message); }
+}
 
 // Saldo dipotong dulu (atomik); jika provider menolak, saldo dikembalikan.
 app.post('/api/buyer/order', buyerOnly, run(async (req) => {
@@ -337,12 +347,14 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
       await refund();
       return { status: false, error: 'Pesanan gagal diproses. Saldo Anda dikembalikan. Coba lagi nanti atau hubungi admin.' };
     }
+    await notifyOrder(uid, sv.name, qty, total, true);
     return { status: true, queued: true, total, balance: left };
   }
   const pid = d.data && (d.data.id || d.data.order_id);
   try {
     await rest('orders', '', { method: 'POST', body: { user_id: uid, service_id: sv.id, service_name: sv.name, target: tgt, quantity: qty, price: total, provider_order_id: pid ? String(pid) : null } });
   } catch (e) { console.error('Gagal mencatat pesanan:', e.message); }
+  await notifyOrder(uid, sv.name, qty, total, false);
   return { status: true, total, balance: left };
 }));
 
@@ -590,7 +602,8 @@ app.post('/api/admin/wa', adminOnly, run(async (req, res) => {
   return { status: true, wa: v };
 }));
 
-require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc });
+const { notify } = require('./push')(app, { rest, adminOnly, run, enc });
+require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc, notify });
 
 /* ================= Halaman ================= */
 const page = (title, body, script, cls) => `<!doctype html><html lang="id"><head><meta charset="utf-8">

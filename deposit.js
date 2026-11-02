@@ -1,6 +1,6 @@
 // Deposit saldo (pembeli) + pengaturan pembayaran dan persetujuan deposit (admin)
 module.exports = function mountDeposit(app, d) {
-  const { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc } = d;
+  const { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc, notify } = d;
   const MIN = 1000;
   const MAX = 10000000;
   const IMG = /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/;
@@ -33,7 +33,13 @@ module.exports = function mountDeposit(app, d) {
     if (!id) return { status: false, error: 'ID tidak valid.' };
     if (!proof) return { status: false, error: 'Bukti transfer wajib diunggah.' };
     if (!validImg(proof, 600000)) return { status: false, error: 'Bukti transfer harus berupa foto (JPG, PNG, atau WEBP) yang tidak terlalu besar.' };
-    const rows = await rest('deposits', '?select=id&status=eq.pending&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId), { method: 'PATCH', prefer: 'return=representation', body: { proof, has_proof: true } });
+    const rows = await rest('deposits', '?select=id,amount&status=eq.pending&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId), { method: 'PATCH', prefer: 'return=representation', body: { proof, has_proof: true } });
+    if (rows && rows.length) {
+      try { // notifikasi ke HP admin: deposit siap diperiksa
+        const [u] = await rest('users', '?select=username&id=eq.' + enc(req.buyerId));
+        await notify('deposit', '💰 Deposit baru', ((u && u.username) || 'Pembeli') + ' mengajukan deposit Rp ' + Math.round(rows[0].amount).toLocaleString('id-ID') + ' (bukti sudah diunggah)', '/admin#dp');
+      } catch (e) { console.error('notif deposit:', e.message); }
+    }
     return rows && rows.length ? { status: true } : { status: false, error: 'Deposit tidak ditemukan atau sudah diproses.' };
   }));
 

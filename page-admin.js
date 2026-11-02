@@ -76,6 +76,11 @@ module.exports = {
 <p class="muted" style="margin-top:6px">Tampil di halaman pembeli sebagai &ldquo;Butuh bantuan? Chat Alzz Pedia&rdquo;. Kosongkan lalu simpan untuk menyembunyikan.</p>
 <label for="wa_no">Nomor WhatsApp</label><input id="wa_no" inputmode="tel" placeholder="08xxxxxxxxxx">
 <div class="err" id="wa_msg" role="status"></div><button type="submit">Simpan nomor</button></form>
+<section class="box"><h2>Notifikasi HP</h2>
+<p class="muted" style="margin-top:6px">Dapat pemberitahuan di layar HP saat ada pesanan baru, deposit baru, atau pembeli baru mendaftar, walau browser ditutup. Di iPhone, buka dasbor dari ikon &ldquo;Tambah ke Layar Utama&rdquo; dulu.</p>
+<p id="pn_st" style="margin-top:10px;font-weight:600"></p>
+<div class="row" style="margin-top:10px"><button type="button" id="pn_on">Aktifkan notifikasi</button><button type="button" class="ghost hide" id="pn_test">Tes notifikasi</button></div>
+<div class="err" id="pn_msg" role="status"></div></section>
 <section class="box"><h2>Layanan untuk pembeli</h2>
 <p class="muted" style="margin-top:6px">Impor daftar layanan dari Sprint Pedia agar tampil di halaman pembeli.</p>
 <button type="button" id="loadsv">Impor semua layanan</button><div class="err" id="svmsg" role="status"></div></section></div>`,
@@ -262,5 +267,41 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
-init();loadWa();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();`,
+init();loadWa();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();
+/* ---------- Notifikasi push (seperti alzDev) ---------- */
+const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
+let pushOn=false,lastEv=0;
+function b64Key(b){const p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/')),a=new Uint8Array(r.length);for(let i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a}
+function paintPush(){const st=$('#pn_st'),on=$('#pn_on'),ts=$('#pn_test');
+ if(!PUSH_OK){st.textContent='Browser ini belum mendukung notifikasi.';on.classList.add('hide');return}
+ if(Notification.permission==='denied'){st.textContent='Notifikasi diblokir. Izinkan lewat pengaturan situs di browser.';on.classList.add('hide');return}
+ st.textContent=pushOn?'Aktif di perangkat ini ✓':'Belum aktif';
+ on.textContent=pushOn?'Matikan notifikasi':'Aktifkan notifikasi';ts.classList.toggle('hide',!pushOn)}
+async function pushSub(){const reg=await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;
+ const k=await api('/api/admin/push/key');if(!k.key)throw new Error('Kunci notifikasi belum siap. Jalankan push.sql di Supabase.');
+ const kb=b64Key(k.key);let sub=await reg.pushManager.getSubscription();
+ if(sub){const cur=sub.options&&sub.options.applicationServerKey?new Uint8Array(sub.options.applicationServerKey):null;
+  if(cur&&(cur.length!==kb.length||cur.some((v,i)=>v!==kb[i]))){await sub.unsubscribe();sub=null}}
+ if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:kb});
+ const d=await post('/api/admin/push/subscribe',sub.toJSON());if(!d.ok)throw new Error(d.error||'Gagal menyimpan langganan.')}
+async function pushUnsub(){const reg=await navigator.serviceWorker.getRegistration('/sw.js');const sub=reg&&await reg.pushManager.getSubscription();
+ if(sub){try{await post('/api/admin/push/unsubscribe',{endpoint:sub.endpoint})}catch{}await sub.unsubscribe()}}
+$('#pn_on').onclick=async()=>{const m=$('#pn_msg');m.textContent='';
+ try{if(pushOn){await pushUnsub();pushOn=false}
+  else{const p=await Notification.requestPermission();if(p!=='granted'){say(m,false,'Izin notifikasi tidak diberikan.');paintPush();return}await pushSub();pushOn=true;say(m,true,'Notifikasi aktif. Coba tombol Tes notifikasi.')}}
+ catch(e){say(m,false,e.message||'Gagal mengaktifkan notifikasi.')}paintPush()};
+$('#pn_test').onclick=async()=>{const m=$('#pn_msg');try{const d=await post('/api/admin/push/test');say(m,d.ok,d.ok?'Tes dikirim. Notifikasi akan muncul sebentar lagi.':errOf(d))}catch{}};
+async function initPush(){if(!PUSH_OK){paintPush();return}
+ try{const reg=await navigator.serviceWorker.getRegistration('/sw.js');const sub=reg&&await reg.pushManager.getSubscription();
+  pushOn=!!sub&&Notification.permission==='granted';
+  if(pushOn)pushSub().catch(()=>{})}catch{}paintPush()}
+// Saat dasbor terbuka: segarkan angka deposit/pesanan otomatis, dan tampilkan notifikasi lokal jika push belum aktif
+async function pollEvents(){try{const d=await api('/api/admin/push/events?since='+lastEv);if(!d.ok)return;
+ const ev=d.events||[];if(lastEv===0){lastEv=ev.length?ev[ev.length-1].id:-1;return}
+ if(!ev.length)return;lastEv=ev[ev.length-1].id;
+ if(ev.some(e=>e.type==='deposit'))loadDeposits();loadRevenue();
+ if(!pushOn&&'Notification' in window&&Notification.permission==='granted')ev.forEach(e=>{try{new Notification(e.title,{body:e.body,tag:'alzz-'+e.id})}catch{}})}catch{}}
+initPush();pollEvents();setInterval(pollEvents,25000);
+if(['home','ord','dp','us','rec','pay','set'].includes(location.hash.slice(1)))tab(location.hash.slice(1));
+`,
 };
