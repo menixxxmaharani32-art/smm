@@ -222,3 +222,11 @@ a.qris-dl{justify-self:center;width:auto;padding:8px 18px;min-height:38px;font-s
 #dback{margin:16px 0 0;padding:8px 16px;min-height:38px;font-size:.9rem}
 .dact{display:flex;align-items:center;gap:8px;flex:none}
 .dact button{margin:0;padding:6px 12px;min-height:34px;font-size:.82rem;border-radius:10px}
+
+/* ===== Ingat saya & jumlah bayar ===== */
+.remember{display:flex;align-items:center;gap:10px;margin:14px 0 0;font-weight:500;font-size:.92rem;cursor:pointer}
+.remember input{width:18px;height:18px;min-height:0;padding:0;flex:none;accent-color:var(--accent)}
+.due{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:12px;padding:14px 16px;border-radius:16px;background:var(--accent-soft)}
+.due span{display:block;font-size:.82rem}
+.due b{display:block;font-size:1.3rem;font-weight:800;color:var(--ink)}
+.due button{margin:0;padding:6px 14px;min-height:34px;font-size:.85rem;border-radius:10px;background:var(--surface);flex:none}

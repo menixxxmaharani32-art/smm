@@ -22,7 +22,8 @@ const secret = () => process.env.SESSION_SECRET || '';
 const sign = (d) => crypto.createHmac('sha256', secret()).update(d).digest('base64url');
 const hash = (v) => crypto.createHash('sha256').update(String(v)).digest();
 const safeEqual = (a, b) => crypto.timingSafeEqual(hash(a), hash(b));
-const cookie = (name, v, maxAge) => `${name}=${v}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+// maxAge kosong (null) = cookie sesi: hilang saat browser ditutup. Diisi = diingat di perangkat.
+const cookie = (name, v, maxAge) => `${name}=${v}; HttpOnly; Secure; SameSite=Strict; Path=/` + (maxAge == null ? '' : `; Max-Age=${maxAge}`);
 
 function tokenOf(obj, ttlMs = 7 * 864e5) {
   const p = Buffer.from(JSON.stringify({ ...obj, exp: Date.now() + ttlMs })).toString('base64url');
@@ -162,7 +163,8 @@ app.post('/api/login', (req, res) => {
     console.warn('Login admin gagal: username ' + (okUser ? 'cocok' : 'beda') + ' (env ' + ADMIN_USER.length + ' huruf, input ' + username.length + '), password ' + (okPass ? 'cocok' : 'beda') + ' (env ' + ADMIN_PASS.length + ' huruf, input ' + password.length + ')');
     return res.status(401).json({ ok: false, error: 'Username atau password salah.' });
   }
-  res.setHeader('Set-Cookie', cookie('session', tokenOf({ u: username }, 12 * 36e5), 43200));
+  const keep = !!(req.body || {}).remember; // "Ingat saya": 30 hari di perangkat ini
+  res.setHeader('Set-Cookie', cookie('session', tokenOf({ u: username }, keep ? 30 * 864e5 : 12 * 36e5), keep ? 30 * 86400 : null));
   res.json({ ok: true });
 });
 app.post('/api/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('session', '', 0)); res.json({ ok: true }); });
@@ -256,7 +258,8 @@ app.post('/api/buyer/login', run(async (req, res) => {
   const password = String((req.body || {}).password || '');
   const [u] = username ? await rest('users', '?select=id,password_hash&username=eq.' + enc(username)) : [];
   if (!u || !checkPw(password, u.password_hash)) return { status: false, error: 'Username atau password salah.' };
-  res.setHeader('Set-Cookie', cookie('bs', tokenOf({ id: u.id }), 604800));
+  const keep = !!(req.body || {}).remember; // "Ingat saya": 30 hari di perangkat ini
+  res.setHeader('Set-Cookie', cookie('bs', tokenOf({ id: u.id }, keep ? 30 * 864e5 : 864e5), keep ? 30 * 86400 : null));
   return { status: true };
 }));
 app.post('/api/buyer/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('bs', '', 0)); res.json({ status: true }); });
@@ -549,12 +552,12 @@ const LOGIN = page('Alzz Pedia', `
 <section class="box" id="auth"><form id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
-<p class="muted" style="margin-top:8px;font-size:.88rem"></p>
+<label class="remember"><input type="checkbox" id="rem"><span>Ingat saya di perangkat ini</span></label>
 <div class="err" id="e" role="alert"></div>
 <button type="submit" style="width:100%">Masuk</button></form>
 <p class="muted" style="margin-top:18px;text-align:center">Belum punya akun? <a href="/#daftar" style="color:var(--accent);font-weight:700">Daftar</a></p></section>`, `
 document.getElementById('f').onsubmit=async ev=>{ev.preventDefault();const e=document.getElementById('e');e.textContent='';
-try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value})});
+try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value,remember:document.getElementById('rem').checked})});
 const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`);
 
 const ADMIN_PAGE = require('./page-admin');
