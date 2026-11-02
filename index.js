@@ -212,13 +212,37 @@ app.get('/api/admin/orders', adminOnly, run(async (req) => {
   }
   const tail = '&order=id.desc&limit=300' + filter;
   let rows;
-  try { rows = await rest('orders', '?select=id,user_id,service_name,target,quantity,price,status,created_at' + tail); }
-  catch (e) { rows = await rest('orders', '?select=id,user_id,service_name,target,quantity,price,status' + tail); }
+  try { rows = await rest('orders', '?select=id,user_id,service_name,target,quantity,price,status,created_at,manual_status' + tail); }
+  catch (e) {
+    try { rows = await rest('orders', '?select=id,user_id,service_name,target,quantity,price,status,created_at' + tail); }
+    catch (e2) { rows = await rest('orders', '?select=id,user_id,service_name,target,quantity,price,status' + tail); }
+  }
   rows = rows.map((o) => ({ ...o, grp: stGroup(o.status) })).filter((o) => want === 'all' || o.grp === want).slice(0, 100);
   const ids = [...new Set(rows.map((o) => o.user_id).filter(Boolean))];
   const names = {};
   if (ids.length) (await rest('users', '?select=id,username&id=in.(' + ids.map(enc).join(',') + ')')).forEach((u) => { names[u.id] = u.username; });
-  return { status: true, data: rows.map((o) => ({ id: o.id, username: o.user_id ? (names[o.user_id] || '(akun dihapus)') : 'Admin', service_name: o.service_name, target: o.target, quantity: o.quantity, price: o.price, grp: o.grp, created_at: o.created_at || null })) };
+  return { status: true, data: rows.map((o) => ({ id: o.id, username: o.user_id ? (names[o.user_id] || '(akun dihapus)') : 'Admin', service_name: o.service_name, target: o.target, quantity: o.quantity, price: o.price, grp: o.grp, manual: !!o.manual_status, created_at: o.created_at || null })) };
+}));
+// Ubah status pesanan secara manual (admin). "Menunggu" (queued) khusus saldo Sprint Pedia kurang, tidak bisa dipilih.
+const ADMIN_ST = { pending: 'pending', processing: 'processing', success: 'success', partial: 'partial', error: 'error' };
+app.post('/api/admin/orders/status', adminOnly, run(async (req, res) => {
+  const id = parseInt((req.body || {}).id, 10);
+  const want = String((req.body || {}).status || '');
+  if (!id) { res.status(400); return { status: false, error: 'Pesanan tidak valid.' }; }
+  if (want !== 'auto' && !ADMIN_ST[want]) { res.status(400); return { status: false, error: 'Status tidak valid.' }; }
+  const [o] = await rest('orders', '?select=id,status&id=eq.' + id);
+  if (!o) return { status: false, error: 'Pesanan tidak ditemukan.' };
+  if (stGroup(o.status) === 'queued') return { status: false, error: 'Pesanan ini Menunggu saldo Sprint Pedia. Diproses otomatis setelah saldo terisi.' };
+  if (want === 'auto') { // kembali mengikuti status dari Sprint Pedia
+    try { await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { manual_status: false } }); } catch (e) { /* kolom belum ada: tidak ada yang perlu dilepas */ }
+    return { status: true, mode: 'auto' };
+  }
+  try { await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { status: ADMIN_ST[want], manual_status: true } }); }
+  catch (e) { // kolom manual_status belum dibuat: tetap simpan status
+    await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { status: ADMIN_ST[want] } });
+    return { status: true, mode: 'manual', warn: 'Jalankan orders_status.sql agar status ini tidak ditimpa otomatis oleh Sprint Pedia.' };
+  }
+  return { status: true, mode: 'manual' };
 }));
 app.get('/api/admin/users', adminOnly, run(async (req) => {
   const q = String(req.query.q || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
@@ -369,8 +393,11 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
 app.post('/api/buyer/status', buyerOnly, run(async (req) => {
   const id = parseInt((req.body || {}).id, 10);
   if (!id) return { status: false, error: 'Pesanan tidak valid.' };
-  const [o] = await rest('orders', '?select=id,status,provider_order_id&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId));
+  let o;
+  try { [o] = await rest('orders', '?select=id,status,provider_order_id,manual_status&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId)); }
+  catch (e) { [o] = await rest('orders', '?select=id,status,provider_order_id&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId)); }
   if (!o) return { status: false, error: 'Pesanan tidak ditemukan.' };
+  if (o.manual_status) return { status: true, state: String(o.status) }; // status diatur admin: jangan ditimpa Sprint Pedia
   if (!o.provider_order_id && ['queued', 'sending'].includes(o.status)) return { status: true, state: 'pending' };
   if (!o.provider_order_id) return { status: false, error: 'Status belum bisa dicek untuk pesanan ini.' };
   const d = await provider('status', { id: o.provider_order_id });
@@ -468,6 +495,7 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
 // Statistik pesanan per layanan (dihitung dari pesanan di web ini)
 const stGroup = (s) => {
   const t = String(s || '').toLowerCase();
+  if (t === 'queued' || t === 'sending') return 'queued'; // "Menunggu": ditahan karena saldo Sprint Pedia kurang
   if (!t || /pend|wait/.test(t)) return 'pending';
   if (/part/.test(t)) return 'partial';
   if (/succ|complet|sukses|selesai|done/.test(t)) return 'success';
@@ -478,8 +506,11 @@ const stGroup = (s) => {
 // Perbarui status pesanan yang belum selesai langsung dari Sprint Pedia
 async function syncOrders(limit) {
   let rows;
-  try { rows = await rest('orders', '?select=id,status,provider_order_id&provider_order_id=not.is.null&order=id.desc&limit=300'); }
-  catch (e) { return { checked: 0, updated: 0 }; }
+  try { rows = await rest('orders', '?select=id,status,provider_order_id&provider_order_id=not.is.null&or=(manual_status.is.null,manual_status.eq.false)&order=id.desc&limit=300'); }
+  catch (e) {
+    try { rows = await rest('orders', '?select=id,status,provider_order_id&provider_order_id=not.is.null&order=id.desc&limit=300'); } // kolom manual_status belum ada
+    catch (e2) { return { checked: 0, updated: 0 }; }
+  }
   const todo = rows.filter((o) => ['pending', 'processing'].includes(stGroup(o.status))).slice(0, limit);
   let updated = 0;
   await Promise.all(todo.map(async (o) => {
@@ -568,7 +599,7 @@ async function tally(filter) {
       throw e;
     }
     part.forEach((o) => {
-      const g = stGroup(o.status);
+      const g = stGroup(o.status) === 'queued' ? 'pending' : stGroup(o.status);
       counts[g]++; total++;
       const q = num(o.quantity);
       if (q > 0) { qsum += q; qn++; }

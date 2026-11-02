@@ -30,8 +30,9 @@ module.exports = {
 </div></div>
 
 <div data-p="ord" class="hide"><section class="box"><h2>Riwayat pesanan pembeli</h2>
+<p class="muted" style="margin-top:6px">Status pesanan bisa diubah manual. <b>Menunggu</b> khusus untuk pesanan yang tertahan karena saldo Sprint Pedia kurang, diproses otomatis setelah saldo terisi.</p>
 <input id="o_q" placeholder="Cari username pembeli" autocapitalize="none" style="margin-top:12px">
-<div class="amts" id="o_f"><button type="button" class="chip" data-s="all" aria-pressed="true">Semua</button><button type="button" class="chip" data-s="success" aria-pressed="false">Sukses</button><button type="button" class="chip" data-s="pending" aria-pressed="false">Menunggu</button><button type="button" class="chip" data-s="processing" aria-pressed="false">Diproses</button><button type="button" class="chip" data-s="error" aria-pressed="false">Gagal</button></div>
+<div class="amts" id="o_f"><button type="button" class="chip" data-s="all" aria-pressed="true">Semua</button><button type="button" class="chip" data-s="queued" aria-pressed="false">Menunggu</button><button type="button" class="chip" data-s="pending" aria-pressed="false">Pending</button><button type="button" class="chip" data-s="processing" aria-pressed="false">Diproses</button><button type="button" class="chip" data-s="success" aria-pressed="false">Sukses</button><button type="button" class="chip" data-s="partial" aria-pressed="false">Sebagian</button><button type="button" class="chip" data-s="error" aria-pressed="false">Error</button></div>
 <div id="o_list" style="margin-top:8px"></div></section></div>
 
 <div data-p="dp" class="hide">
@@ -99,7 +100,8 @@ const btn=(t,cls,fn)=>{const b=document.createElement('button');b.type='button';
 window.addEventListener('pageshow',e=>{if(e.persisted)location.reload()});
 
 let ofil='all',otm=null;
-const OG={success:['Sukses','approved'],pending:['Menunggu',''],processing:['Diproses',''],partial:['Sebagian',''],error:['Gagal','rejected']};
+const OG={success:['Sukses','approved'],queued:['Menunggu',''],pending:['Pending',''],processing:['Diproses',''],partial:['Sebagian',''],error:['Error','rejected']};
+const OPT=[['pending','Pending'],['processing','Diproses'],['success','Sukses'],['partial','Sebagian'],['error','Error']];
 async function loadOrd(){const box=$('#o_list');
  try{const d=await api('/api/admin/orders?status='+ofil+'&q='+encodeURIComponent($('#o_q').value.trim()));box.textContent='';
   if(!d.status){box.textContent=errOf(d);return}
@@ -110,7 +112,19 @@ async function loadOrd(){const box=$('#o_list');
    const m=document.createElement('p');m.className='muted';m.textContent=o.username+(o.created_at?' · '+new Date(o.created_at).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'}):'');
    const t=document.createElement('p');t.className='tg muted';t.textContent=o.target||'';
    const v=document.createElement('p');v.className='ov';v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
-   r.append(h,m,t,v);box.append(r)})}catch{}}
+   r.append(h,m,t,v);
+   if(o.grp==='queued'){const q=document.createElement('p');q.className='muted';q.textContent='Menunggu saldo Sprint Pedia, diproses otomatis setelah saldo terisi.';r.append(q)}
+   else{const w=document.createElement('div');w.className='row';w.style.marginTop='8px';
+    const sel=document.createElement('select');sel.setAttribute('aria-label','Ubah status pesanan');
+    OPT.forEach(x=>{const op=document.createElement('option');op.value=x[0];op.textContent=x[1];sel.append(op)});
+    if(o.manual){const op=document.createElement('option');op.value='auto';op.textContent='Otomatis (ikut Sprint Pedia)';sel.append(op)}
+    sel.value=OPT.some(x=>x[0]===o.grp)?o.grp:'pending';
+    const sv=document.createElement('button');sv.type='button';sv.className='ghost';sv.textContent='Simpan status';
+    sv.onclick=async()=>{sv.disabled=true;try{const d=await post('/api/admin/orders/status',{id:o.id,status:sel.value});
+      if(d.status){if(d.warn)alert(d.warn);loadOrd();loadRevenue()}else{alert(errOf(d));sv.disabled=false}}catch{sv.disabled=false}};
+    w.append(sel,sv);r.append(w);
+    if(o.manual){const mm=document.createElement('p');mm.className='muted';mm.textContent='Status diatur manual oleh admin.';r.append(mm)}}
+   box.append(r)})}catch{}}
 document.querySelectorAll('#o_f .chip').forEach(b=>b.onclick=()=>{ofil=b.dataset.s;document.querySelectorAll('#o_f .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));loadOrd()});
 $('#o_q').addEventListener('input',()=>{clearTimeout(otm);otm=setTimeout(loadOrd,350)});
 function tab(t){document.querySelectorAll('[data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));

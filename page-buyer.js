@@ -255,7 +255,7 @@ $('#bf').onsubmit=async e=>{e.preventDefault();
  catch{note($('#bmsg'),'','Tidak bisa terhubung ke server.')}};
 
 function stInfo(s){const t=String(s||'').toLowerCase();
- if(!t||t.indexOf('pend')>-1||t.indexOf('wait')>-1)return['Pending','pending'];
+ if(!t||t==='queued'||t==='sending'||t.indexOf('pend')>-1||t.indexOf('wait')>-1)return['Pending','pending'];
  if(t.indexOf('part')>-1)return['Sebagian','part'];
  if(t.indexOf('succ')>-1||t.indexOf('complet')>-1||t.indexOf('sukses')>-1||t.indexOf('selesai')>-1||t.indexOf('done')>-1)return['Sukses','ok'];
  if(t.indexOf('err')>-1||t.indexOf('fail')>-1||t.indexOf('gagal')>-1||t.indexOf('cancel')>-1||t.indexOf('refund')>-1||t.indexOf('reject')>-1)return['Error','bad'];
