@@ -151,7 +151,32 @@ details[open]>summary{color:var(--accent)}
  .saldo{font-size:2rem}
 }
 
-/* Masuk vs Daftar: tampilan dibedakan */
-#auth{border-top:4px solid var(--indigo)}
-#auth.up{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-soft),var(--surface) 160px)}
-#a_ok:not(:empty){margin-top:12px;padding:10px 12px;border-radius:10px;background:var(--accent-soft);border:1px solid var(--accent)}
+
+/* ===== Tampilan lebih hidup ===== */
+body{background:radial-gradient(900px 480px at 8% -8%,var(--accent-soft),transparent 60%),radial-gradient(760px 420px at 100% 0,var(--accent-soft),transparent 55%),var(--bg);background-attachment:fixed}
+@keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.box{border-radius:22px;padding:22px;box-shadow:0 10px 30px -14px rgba(15,32,42,.28);animation:rise .35s ease both}
+.brand{font-size:1.05rem}
+.logo{width:40px;height:40px;border-radius:13px;font-size:1.2rem;box-shadow:0 8px 18px -8px var(--accent)}
+h1{font-size:1.75rem;font-weight:800}
+input,textarea,select{border-radius:14px;background:var(--surface);transition:border-color .15s,box-shadow .15s}
+input:focus,textarea:focus,select:focus{box-shadow:0 0 0 4px var(--accent-soft)}
+button,a.btn{border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 8px 18px -10px var(--accent);transition:transform .15s,box-shadow .15s,filter .15s}
+button:hover,a.btn:hover{transform:translateY(-1px);box-shadow:0 12px 22px -10px var(--accent)}
+button:active,a.btn:active{transform:translateY(1px)}
+button.ghost,.chip,.tab,.svc,.item{box-shadow:none;background-image:none}
+button.ghost:hover,.chip:hover,.tab:hover,.item:hover{transform:none;box-shadow:none}
+.tab[aria-selected=true],.chip[aria-pressed=true]{background:linear-gradient(135deg,var(--accent),var(--accent2))}
+.tabs{border-radius:18px}
+.svc{border-radius:16px;transition:transform .15s,border-color .15s,box-shadow .15s}
+.svc:hover{transform:translateY(-2px);box-shadow:0 10px 20px -14px rgba(15,32,42,.4)}
+main.auth{text-align:center}
+main.auth .brand{justify-content:center;flex-direction:column;gap:12px;margin-bottom:10px}
+main.auth .muted{margin-top:4px}
+main.auth .box{text-align:left}
+main.auth .box button[type=submit]{margin-top:22px}
+/* Masuk vs Daftar */
+#auth{border-top:5px solid var(--indigo)}
+#auth.up{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-soft),var(--surface) 170px)}
+#a_ok:not(:empty){margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent);text-align:center}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}

@@ -1,13 +1,12 @@
 // Halaman pembeli: judul, HTML, dan script klien
 module.exports = {
-  title: 'Alz Sosmed',
+  title: 'Alzz Pedia',
   body: `
-<div class="brand"><span class="logo">A</span><span>Alz Sosmed</span></div>
+<div class="brand"><span class="logo">A</span><span>Alzz Pedia</span></div>
 <h1 id="ttl">Masuk</h1>
 <p class="muted" id="sub"></p>
 
 <section class="box hide" id="auth">
-<div class="seg" role="group" aria-label="Masuk atau daftar"><button type="button" id="m_in" aria-selected="true">Masuk</button><button type="button" id="m_up" aria-selected="false">Daftar</button></div>
 <form id="af" autocomplete="on">
 <label for="a_user">Username</label><input id="a_user" autocapitalize="none" autocomplete="username" required>
 <label for="a_pass">Password</label><input id="a_pass" type="password" autocomplete="current-password" required>
@@ -74,11 +73,9 @@ function setMode(m){mode=m;
  $('#a_hint').textContent=m==='in'?'':'Username 3-20 karakter (huruf kecil, angka, atau garis bawah). Password minimal 6 karakter.';
  $('#a_swt').textContent=m==='in'?'Belum punya akun?':'Sudah punya akun?';
  $('#a_swl').textContent=m==='in'?'Daftar':'Masuk';
- $('#m_in').setAttribute('aria-selected',String(m==='in'));$('#m_up').setAttribute('aria-selected',String(m==='up'));
  $('#a_p2').classList.toggle('hide',m==='in');$('#a_pass2').required=(m==='up');$('#a_pass2').value='';
  $('#auth').classList.toggle('up',m==='up');
  $('#a_msg').textContent='';$('#a_ok').textContent='';head()}
-$('#m_in').onclick=()=>setMode('in');$('#m_up').onclick=()=>setMode('up');
 $('#a_swl').onclick=e=>{e.preventDefault();setMode(mode==='in'?'up':'in')};
 $('#af').onsubmit=async e=>{e.preventDefault();if(mode==='up'&&$('#a_pass').value!==$('#a_pass2').value){$('#a_ok').textContent='';$('#a_msg').textContent='Password dan ulangi password tidak sama.';$('#a_pass2').focus();return}const go=$('#a_go');go.disabled=true;$('#a_msg').textContent='';$('#a_ok').textContent='';
  try{const d=await post('/api/buyer/'+(mode==='in'?'login':'register'),{username:$('#a_user').value,password:$('#a_pass').value});

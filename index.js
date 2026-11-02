@@ -544,7 +544,7 @@ const page = (title, body, script, cls) => `<!doctype html><html lang="id"><head
 <link rel="stylesheet" href="/style.css"></head><body><main class="${cls || ''}">${body}</main><script>${script}</script></body></html>`;
 
 const LOGIN = page('Masuk', `
-<div class="brand"><span class="logo">A</span><span>Alz Sosmed</span><span class="badge">Admin</span></div>
+<div class="brand"><span class="logo">A</span><span>Alzz Pedia</span><span class="badge">Admin</span></div>
 <h1>Masuk Admin</h1><p class="muted">Silakan masuk ke akun Anda.</p>
 <form class="box" id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
