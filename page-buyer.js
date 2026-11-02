@@ -47,15 +47,22 @@ module.exports = {
 </div>
 
 <div data-p="dp" class="hide">
+<div id="dv_list">
 <section class="box"><h2>Cara deposit</h2>
-<ol class="steps"><li><b>1</b><span>Transfer</span></li><li><b>2</b><span>Kirim bukti</span></li><li><b>3</b><span>Saldo masuk</span></li></ol>
-<div id="pay"></div></section>
+<ol class="steps"><li><b>1</b><span>Ajukan deposit</span></li><li><b>2</b><span>Pilih metode pembayaran</span></li><li><b>3</b><span>Upload bukti tf</span></li></ol></section>
 <form class="box" id="df" autocomplete="off"><h2>Ajukan deposit</h2>
 <label for="d_amt">Jumlah deposit (Rp)</label><input id="d_amt" inputmode="numeric" placeholder="Minimal 1000">
-<label for="d_proof">Bukti transfer (foto, wajib)</label>
-<label class="drop"><input id="d_proof" type="file" accept="image/*"><span id="d_fn">Pilih foto bukti transfer</span></label>
-<div class="err" id="dmsg" role="status"></div><button type="submit" id="dgo" style="width:100%">Kirim deposit</button></form>
+<div class="err" id="dmsg" role="status"></div><button type="submit" id="dgo" style="width:100%">Ajukan deposit</button></form>
 <section class="box"><h2>Riwayat deposit</h2><div id="dlist" class="muted" style="margin-top:6px"></div></section>
+</div>
+<div id="dv_pay" class="hide">
+<button type="button" class="ghost" id="dback">&larr; Kembali</button>
+<section class="box"><h2>Metode pembayaran</h2><p class="muted" id="dpay_amt" style="margin-top:4px"></p>
+<div class="methods" id="methods"></div><div id="pay"></div></section>
+<form class="box" id="pf" autocomplete="off"><h2>Upload bukti transfer</h2>
+<label class="drop"><input id="d_proof" type="file" accept="image/*"><span id="d_fn">Pilih foto bukti transfer</span></label>
+<div class="err" id="pmsg" role="status"></div><button type="submit" id="pgo" style="width:100%">Kirim bukti transfer</button></form>
+</div>
 </div>
 </div>`,
   script: `
@@ -95,7 +102,7 @@ $('#bout').onclick=async()=>{try{await post('/api/buyer/logout')}catch{}location
 /* ---------- Tab & Deposit ---------- */
 function tab(t){document.querySelectorAll('#app [data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));
  document.querySelectorAll('#mtabs .tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));
- if(t==='dp'){loadPay();loadDeposits();refreshBal()}
+ if(t==='dp'){dview('list');loadDeposits();refreshBal()}
  if(t==='rw')loadOrders()}
 document.querySelectorAll('#mtabs .tab').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 async function refreshBal(){try{const r=await fetch('/api/buyer/me');const d=await r.json();if(d.status)$('#ubal').textContent='Saldo '+rp(d.balance)}catch{}}
@@ -116,20 +123,30 @@ function openQris(u){
  function close(){ov.remove();document.body.style.overflow='';document.removeEventListener('keydown',key)}
  cl.onclick=close;ov.onclick=e=>{if(e.target===ov)close()};document.addEventListener('keydown',key);
  act.append(dl,cl);card.append(t,i,act);ov.append(card);document.body.append(ov);document.body.style.overflow='hidden';cl.focus()}
-async function loadPay(){const box=$('#pay');
- try{const r=await fetch('/api/buyer/payment');const d=await r.json();box.textContent='';
-  if(!d.status||(!d.qris&&!d.dana)){box.textContent='Metode pembayaran belum diatur admin. Hubungi admin.';return}
-  if(d.qris){const q=document.createElement('button');q.type='button';q.className='qris';q.setAttribute('aria-label','Perbesar QRIS');
-   const i=document.createElement('img');i.src=d.qris;i.alt='QRIS';q.append(i);q.onclick=()=>openQris(d.qris);
-   const h=document.createElement('p');h.className='muted qris-hint';h.textContent='Ketuk QRIS untuk memperbesar';
-   const a=document.createElement('a');a.className='btn qris-dl';a.href=d.qris;a.download='qris.'+qrisExt(d.qris);a.textContent='Download QRIS';
-   box.append(q,h,a)}
-  if(d.dana){const dn=document.createElement('div');dn.className='dana';const p=document.createElement('p');p.className='muted';p.textContent='Dana'+(d.dana_name?' a.n. '+d.dana_name:'');
-   const n=document.createElement('div');n.className='total';n.textContent=d.dana;
-   const c=document.createElement('button');c.type='button';c.className='ghost';c.textContent='Salin nomor';
-   c.onclick=async()=>{try{await navigator.clipboard.writeText(d.dana.replace(/[^0-9+]/g,''));c.textContent='Tersalin'}catch{c.textContent='Salin manual'}};
-   dn.append(p,n,c);box.append(dn)}}
- catch{box.textContent='Gagal memuat metode pembayaran.'}}
+let curDep=null,payInfo=null,method=null;
+function dview(v){$('#dv_list').classList.toggle('hide',v!=='list');$('#dv_pay').classList.toggle('hide',v!=='pay');window.scrollTo(0,0)}
+async function openPay(dep){curDep=dep;method=null;$('#dpay_amt').textContent='Deposit '+rp(dep.amount)+'. Transfer sesuai nominal ini.';
+ $('#pmsg').textContent='';$('#d_proof').value='';$('#d_fn').textContent='Pilih foto bukti transfer';$('#pay').textContent='';dview('pay');
+ const mb=$('#methods');mb.textContent='Memuat…';
+ try{const r=await fetch('/api/buyer/payment');const d=await r.json();payInfo=d;mb.textContent='';
+  const ms=[];if(d.status&&d.dana)ms.push(['dana','Dana']);if(d.status&&d.qris)ms.push(['qris','QRIS']);
+  if(!ms.length){mb.textContent='Metode pembayaran belum diatur admin. Hubungi admin.';return}
+  ms.forEach(m=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=m[1];b.dataset.k=m[0];b.setAttribute('aria-pressed','false');b.onclick=()=>pickMethod(m[0]);mb.append(b)});
+  if(ms.length===1)pickMethod(ms[0][0]);else{const h=document.createElement('p');h.className='muted';h.id='mhint';h.style.cssText='width:100%;font-size:.88rem';h.textContent='Pilih Dana atau QRIS.';mb.append(h)}}
+ catch{mb.textContent='Gagal memuat metode pembayaran.'}}
+function pickMethod(k){method=k;const h=$('#mhint');if(h)h.remove();
+ document.querySelectorAll('#methods button').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.k===k)));renderPay()}
+function renderPay(){const box=$('#pay');box.textContent='';const d=payInfo||{};
+ if(method==='qris'&&d.qris){const q=document.createElement('button');q.type='button';q.className='qris';q.setAttribute('aria-label','Perbesar QRIS');
+  const i=document.createElement('img');i.src=d.qris;i.alt='QRIS';q.append(i);q.onclick=()=>openQris(d.qris);
+  const h=document.createElement('p');h.className='muted qris-hint';h.textContent='Ketuk QRIS untuk memperbesar';
+  const a=document.createElement('a');a.className='btn qris-dl';a.href=d.qris;a.download='qris.'+qrisExt(d.qris);a.textContent='Download QRIS';
+  box.append(q,h,a)}
+ if(method==='dana'&&d.dana){const dn=document.createElement('div');dn.className='dana';const p=document.createElement('p');p.className='muted';p.textContent='Dana'+(d.dana_name?' a.n. '+d.dana_name:'');
+  const n=document.createElement('div');n.className='total';n.textContent=d.dana;
+  const c=document.createElement('button');c.type='button';c.className='ghost';c.textContent='Salin nomor';
+  c.onclick=async()=>{try{await navigator.clipboard.writeText(d.dana.replace(/[^0-9+]/g,''));c.textContent='Tersalin'}catch{c.textContent='Salin manual'}};
+  dn.append(p,n,c);box.append(dn)}}
 const DST={pending:['Menunggu persetujuan',''],approved:['Disetujui','var(--accent)'],rejected:['Ditolak','var(--danger)']};
 async function loadDeposits(){const box=$('#dlist');
  try{const r=await fetch('/api/buyer/deposits');if(!r.ok)return;const d=await r.json();box.textContent='';
@@ -137,20 +154,28 @@ async function loadDeposits(){const box=$('#dlist');
   d.data.forEach(x=>{const row=document.createElement('div');row.className='dep';
    const l=document.createElement('div');const v=document.createElement('p');v.className='dv';v.textContent=rp(x.amount);
    const m=document.createElement('p');m.className='muted dd';m.textContent=new Date(x.created_at).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'});l.append(v,m);
-   const s=document.createElement('span');s.className='pill '+x.status;s.textContent=(DST[x.status]||[x.status])[0];
-   row.append(l,s);box.append(row)})}catch{}}
+   const s=document.createElement('span');s.className='pill '+x.status;const wait=x.status==='pending'&&!x.has_proof;s.textContent=wait?'Menunggu bukti':(DST[x.status]||[x.status])[0];
+   let right=s;if(wait){const b=document.createElement('button');b.type='button';b.className='ghost';b.textContent='Lanjutkan';b.onclick=()=>openPay(x);right=document.createElement('div');right.className='dact';right.append(s,b)}
+   row.append(l,right);box.append(row)})}catch{}}
 $('#d_proof').addEventListener('change',()=>{const f=$('#d_proof').files[0];$('#d_fn').textContent=f?f.name:'Pilih foto bukti transfer'});
 $('#df').onsubmit=async e=>{e.preventDefault();const m=$('#dmsg');m.style.color='';
  const amt=parseInt($('#d_amt').value,10)||0;
  if(amt<1000){m.textContent='Jumlah deposit minimal Rp 1.000.';return}
- if(!$('#d_proof').files[0]){m.textContent='Bukti transfer wajib diunggah.';return}
- const go=$('#dgo');go.disabled=true;m.textContent='Mengirim…';
- try{const f=$('#d_proof').files[0];const b={amount:amt,proof:await img2url(f,1000,.7)};
-  const d=await post('/api/buyer/deposit',b);
-  if(d.status){m.style.color='var(--accent)';m.textContent='Deposit terkirim. Saldo masuk setelah admin menyetujui.';$('#d_amt').value='';$('#d_proof').value='';$('#d_fn').textContent='Pilih foto bukti transfer';loadDeposits()}
-  else m.textContent=d.error||'Gagal mengirim deposit.'}
+ const go=$('#dgo');go.disabled=true;m.textContent='Mengajukan…';
+ try{const d=await post('/api/buyer/deposit',{amount:amt});
+  if(d.status){m.textContent='';$('#d_amt').value='';loadDeposits();openPay({id:d.id,amount:amt})}
+  else m.textContent=d.error||'Gagal mengajukan deposit.'}
+ catch{m.textContent='Tidak bisa terhubung ke server.'}
+ go.disabled=false};
+$('#pf').onsubmit=async e=>{e.preventDefault();const m=$('#pmsg');m.style.color='';
+ const f=$('#d_proof').files[0];if(!f){m.textContent='Bukti transfer wajib diunggah.';return}
+ if(!curDep)return;const go=$('#pgo');go.disabled=true;m.textContent='Mengirim…';
+ try{const d=await post('/api/buyer/deposit/'+curDep.id+'/proof',{proof:await img2url(f,1000,.7)});
+  if(d.status){curDep=null;dview('list');const l=$('#dmsg');l.style.color='var(--accent)';l.textContent='Bukti terkirim. Saldo masuk setelah admin menyetujui.';loadDeposits()}
+  else m.textContent=d.error||'Gagal mengirim bukti.'}
  catch{m.textContent='Gagal mengirim. Coba lagi atau gunakan foto yang lebih kecil.'}
  go.disabled=false};
+$('#dback').onclick=()=>{dview('list');loadDeposits()};
 
 /* ---------- Katalog (hanya setelah masuk) ---------- */
 const plat=c=>{const w=(c||'').trim().split(' ')[0]||'Lainnya';return w.charAt(0).toUpperCase()+w.slice(1).toLowerCase()};

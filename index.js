@@ -546,15 +546,16 @@ const page = (title, body, script, cls) => `<!doctype html><html lang="id"><head
 const LOGIN = page('Alzz Pedia', `
 <div class="brand"><span class="logo">A</span><span>Alzz Pedia</span></div>
 <h1>Masuk</h1><p class="muted">Masuk untuk melihat layanan dan memesan.</p>
-<form class="box" id="f" autocomplete="on">
+<section class="box" id="auth"><form id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
+<p class="muted" style="margin-top:8px;font-size:.88rem"></p>
 <div class="err" id="e" role="alert"></div>
-<button type="submit">Masuk</button></form>
-<p class="muted" style="margin-top:16px;text-align:center">Belum punya akun? <a href="/#daftar" style="color:var(--accent);font-weight:700">Daftar</a></p>`, `
+<button type="submit" style="width:100%">Masuk</button></form>
+<p class="muted" style="margin-top:18px;text-align:center">Belum punya akun? <a href="/#daftar" style="color:var(--accent);font-weight:700">Daftar</a></p></section>`, `
 document.getElementById('f').onsubmit=async ev=>{ev.preventDefault();const e=document.getElementById('e');e.textContent='';
 try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value})});
-const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`, 'auth');
+const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`);
 
 const ADMIN_PAGE = require('./page-admin');
 const BUYER_PAGE = require('./page-buyer');

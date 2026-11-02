@@ -176,7 +176,7 @@ main.auth .muted{margin-top:4px}
 main.auth .box{text-align:left}
 main.auth .box button[type=submit]{margin-top:22px}
 /* Masuk vs Daftar */
-#auth,#f{border-top:5px solid var(--indigo)}
+#auth{border-top:5px solid var(--indigo)}
 #auth.up{border-color:var(--accent);background:linear-gradient(180deg,var(--accent-soft),var(--surface) 170px)}
 #a_ok:not(:empty){margin-top:12px;padding:10px 12px;border-radius:12px;background:var(--accent-soft);border:1px solid var(--accent);text-align:center}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
@@ -214,3 +214,11 @@ a.qris-dl{justify-self:center;width:auto;padding:8px 18px;min-height:38px;font-s
 .dana p{flex-basis:100%;font-size:.85rem}
 .dana .total{font-size:1.05rem;font-weight:700;letter-spacing:.01em}
 .dana button{width:auto;margin:0;padding:6px 14px;min-height:34px;font-size:.85rem;border-radius:10px}
+
+/* ===== Deposit bertahap ===== */
+.methods{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+#pay:empty{display:none}
+#pay{margin-top:14px}
+#dback{margin:16px 0 0;padding:8px 16px;min-height:38px;font-size:.9rem}
+.dact{display:flex;align-items:center;gap:8px;flex:none}
+.dact button{margin:0;padding:6px 12px;min-height:34px;font-size:.82rem;border-radius:10px}

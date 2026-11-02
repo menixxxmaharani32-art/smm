@@ -16,21 +16,31 @@ module.exports = function mountDeposit(app, d) {
   /* ---------- Pembeli ---------- */
   app.get('/api/buyer/payment', buyerOnly, run(async () => ({ status: true, ...(await payment()) })));
 
+  // Langkah 1: ajukan nominal dulu (tanpa bukti). Bukti diunggah di langkah berikutnya.
   app.post('/api/buyer/deposit', buyerOnly, run(async (req) => {
     const amount = parseInt((req.body || {}).amount, 10);
-    const proof = (req.body || {}).proof;
     if (!(amount >= MIN && amount <= MAX)) return { status: false, error: 'Jumlah deposit minimal Rp 1.000 dan maksimal Rp 10.000.000.' };
+    const pending = await rest('deposits', '?select=id&status=eq.pending&user_id=eq.' + enc(req.buyerId));
+    if (pending.length >= 3) return { status: false, error: 'Anda masih punya 3 deposit yang menunggu. Lanjutkan atau tunggu admin memprosesnya.' };
+    const [dep] = await rest('deposits', '?select=id', { method: 'POST', prefer: 'return=representation', body: { user_id: req.buyerId, amount, proof: null, has_proof: false } });
+    return { status: true, id: dep && dep.id };
+  }));
+
+  // Langkah 2: unggah bukti transfer untuk deposit milik pembeli yang masih pending.
+  app.post('/api/buyer/deposit/:id/proof', buyerOnly, run(async (req) => {
+    const id = idOf(req);
+    const proof = (req.body || {}).proof;
+    if (!id) return { status: false, error: 'ID tidak valid.' };
     if (!proof) return { status: false, error: 'Bukti transfer wajib diunggah.' };
     if (!validImg(proof, 600000)) return { status: false, error: 'Bukti transfer harus berupa foto (JPG, PNG, atau WEBP) yang tidak terlalu besar.' };
-    const pending = await rest('deposits', '?select=id&status=eq.pending&user_id=eq.' + enc(req.buyerId));
-    if (pending.length >= 3) return { status: false, error: 'Anda masih punya 3 deposit yang menunggu persetujuan. Tunggu admin memprosesnya.' };
-    await rest('deposits', '', { method: 'POST', body: { user_id: req.buyerId, amount, proof, has_proof: true } });
-    return { status: true };
+    const rows = await rest('deposits', '?select=id&status=eq.pending&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId), { method: 'PATCH', prefer: 'return=representation', body: { proof, has_proof: true } });
+    return rows && rows.length ? { status: true } : { status: false, error: 'Deposit tidak ditemukan atau sudah diproses.' };
   }));
+
 
   app.get('/api/buyer/deposits', buyerOnly, run(async (req) => ({
     status: true,
-    data: await rest('deposits', '?select=id,amount,status,created_at&order=id.desc&limit=20&user_id=eq.' + enc(req.buyerId)),
+    data: await rest('deposits', '?select=id,amount,status,has_proof,created_at&order=id.desc&limit=20&user_id=eq.' + enc(req.buyerId)),
   })));
 
   /* ---------- Admin: pengaturan pembayaran ---------- */
@@ -75,7 +85,7 @@ module.exports = function mountDeposit(app, d) {
   }));
 
   // Klaim dulu (hanya jika masih pending) supaya tidak bisa diproses dua kali.
-  const claim = (id, to) => rest('deposits', '?select=id,user_id,amount&status=eq.pending&id=eq.' + id, {
+  const claim = (id, to) => rest('deposits', '?select=id,user_id,amount&status=eq.pending&id=eq.' + id + (to === 'approved' ? '&has_proof=eq.true' : ''), {
     method: 'PATCH', prefer: 'return=representation', body: { status: to, decided_at: new Date().toISOString() },
   });
 
@@ -83,7 +93,7 @@ module.exports = function mountDeposit(app, d) {
     const id = idOf(req);
     if (!id) return { status: false, error: 'ID tidak valid.' };
     const [dep] = (await claim(id, 'approved')) || [];
-    if (!dep) return { status: false, error: 'Deposit sudah diproses atau tidak ditemukan.' };
+    if (!dep) return { status: false, error: 'Deposit belum ada bukti transfer, sudah diproses, atau tidak ditemukan.' };
     try {
       const nb = await rpc('adjust_balance', { p_user: dep.user_id, p_delta: dep.amount });
       if (nb === null) throw new Error('Saldo gagal ditambahkan');
