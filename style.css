@@ -290,3 +290,11 @@ body.adm .ttl{font-size:1rem}
 body.adm input,body.adm select,body.adm textarea{font-size:15px}
 body.adm button{font-size:.88rem}
 body.adm .rr{padding:12px}
+
+/* riwayat pesanan (admin) */
+.orow{padding:12px 0;border-top:1px solid var(--line)}
+.orow:first-child{border-top:0}
+.orow p{margin-top:4px}
+.ohd{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.tg{word-break:break-all;font-size:.85rem}
+.ov{font-weight:700}

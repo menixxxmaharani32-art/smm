@@ -200,6 +200,26 @@ app.post('/api/services/sync', adminOnly, run(async () => {
   cache.rows = null;
   return { status: true, count: rows.length };
 }));
+// Riwayat pesanan semua pembeli (admin): bisa dicari per username dan difilter per status
+app.get('/api/admin/orders', adminOnly, run(async (req) => {
+  const q = String(req.query.q || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
+  const want = String(req.query.status || 'all');
+  let filter = '';
+  if (q) {
+    const us = await rest('users', '?select=id&username=ilike.*' + q + '*&limit=50');
+    if (!us.length) return { status: true, data: [] };
+    filter = '&user_id=in.(' + us.map((u) => enc(u.id)).join(',') + ')';
+  }
+  const tail = '&order=id.desc&limit=300' + filter;
+  let rows;
+  try { rows = await rest('orders', '?select=id,user_id,service_name,target,quantity,price,status,created_at' + tail); }
+  catch (e) { rows = await rest('orders', '?select=id,user_id,service_name,target,quantity,price,status' + tail); }
+  rows = rows.map((o) => ({ ...o, grp: stGroup(o.status) })).filter((o) => want === 'all' || o.grp === want).slice(0, 100);
+  const ids = [...new Set(rows.map((o) => o.user_id).filter(Boolean))];
+  const names = {};
+  if (ids.length) (await rest('users', '?select=id,username&id=in.(' + ids.map(enc).join(',') + ')')).forEach((u) => { names[u.id] = u.username; });
+  return { status: true, data: rows.map((o) => ({ id: o.id, username: o.user_id ? (names[o.user_id] || '(akun dihapus)') : 'Admin', service_name: o.service_name, target: o.target, quantity: o.quantity, price: o.price, grp: o.grp, created_at: o.created_at || null })) };
+}));
 app.get('/api/admin/users', adminOnly, run(async (req) => {
   const q = String(req.query.q || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
   const rows = await rest('users', '?select=username,balance,created_at&order=created_at.desc&limit=100' + (q ? '&username=ilike.*' + q + '*' : ''));

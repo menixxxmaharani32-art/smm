@@ -5,6 +5,7 @@ module.exports = {
 <div class="top"><h1>Dasbor admin</h1><button class="ghost" id="logout" type="button">Keluar</button></div>
 <nav class="tabs">
 <button class="tab" type="button" data-t="home" aria-selected="true">Pendapatan</button>
+<button class="tab" type="button" data-t="ord" aria-selected="false">Pesanan</button>
 <button class="tab" type="button" data-t="dp" id="dtab" aria-selected="false">Deposit</button>
 <button class="tab" type="button" data-t="us" aria-selected="false">Pembeli</button>
 <button class="tab" type="button" data-t="rec" aria-selected="false">Rekomendasi</button>
@@ -27,6 +28,11 @@ module.exports = {
 <section class="box"><p class="lbl">Saldo Sprint Pedia</p><div class="saldo" id="saldo">…</div><p class="muted" id="provider"></p><button class="ghost" id="refresh" type="button" style="margin-top:14px">Segarkan saldo</button></section>
 <section class="box"><p class="lbl">Pesanan menunggu saldo Sprint Pedia</p><div class="saldo" id="qcount">…</div><p class="muted" style="margin-top:6px;font-size:.85rem">Diproses otomatis setelah saldo Sprint Pedia terisi.</p></section>
 </div></div>
+
+<div data-p="ord" class="hide"><section class="box"><h2>Riwayat pesanan pembeli</h2>
+<input id="o_q" placeholder="Cari username pembeli" autocapitalize="none" style="margin-top:12px">
+<div class="amts" id="o_f"><button type="button" class="chip" data-s="all" aria-pressed="true">Semua</button><button type="button" class="chip" data-s="success" aria-pressed="false">Sukses</button><button type="button" class="chip" data-s="pending" aria-pressed="false">Menunggu</button><button type="button" class="chip" data-s="processing" aria-pressed="false">Diproses</button><button type="button" class="chip" data-s="error" aria-pressed="false">Gagal</button></div>
+<div id="o_list" style="margin-top:8px"></div></section></div>
 
 <div data-p="dp" class="hide">
 <section class="box"><h2>Menunggu persetujuan</h2><div id="dpend" style="margin-top:8px"></div></section>
@@ -80,9 +86,24 @@ const say=(el,ok,t)=>{el.style.color=ok?'var(--accent)':'';el.textContent=t};
 const btn=(t,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className=cls||'';b.textContent=t;b.onclick=fn;return b};
 window.addEventListener('pageshow',e=>{if(e.persisted)location.reload()});
 
+let ofil='all',otm=null;
+const OG={success:['Sukses','approved'],pending:['Menunggu',''],processing:['Diproses',''],partial:['Sebagian',''],error:['Gagal','rejected']};
+async function loadOrd(){const box=$('#o_list');
+ try{const d=await api('/api/admin/orders?status='+ofil+'&q='+encodeURIComponent($('#o_q').value.trim()));box.textContent='';
+  if(!d.status){box.textContent=errOf(d);return}
+  if(!d.data.length){box.textContent='Belum ada pesanan.';return}
+  d.data.forEach(o=>{const r=document.createElement('div');r.className='orow';
+   const h=document.createElement('div');h.className='ohd';const n=document.createElement('b');n.textContent=o.service_name||'Pesanan #'+o.id;
+   const g=OG[o.grp]||[o.grp,''];const s=document.createElement('span');s.className='pill '+g[1];s.textContent=g[0];h.append(n,s);
+   const m=document.createElement('p');m.className='muted';m.textContent=o.username+(o.created_at?' · '+new Date(o.created_at).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'}):'');
+   const t=document.createElement('p');t.className='tg muted';t.textContent=o.target||'';
+   const v=document.createElement('p');v.className='ov';v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
+   r.append(h,m,t,v);box.append(r)})}catch{}}
+document.querySelectorAll('#o_f .chip').forEach(b=>b.onclick=()=>{ofil=b.dataset.s;document.querySelectorAll('#o_f .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));loadOrd()});
+$('#o_q').addEventListener('input',()=>{clearTimeout(otm);otm=setTimeout(loadOrd,350)});
 function tab(t){document.querySelectorAll('[data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));
  document.querySelectorAll('.tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));
- if(t==='dp')loadDeposits();if(t==='us')loadUsers();if(t==='rec')loadRec()}
+ if(t==='ord')loadOrd();if(t==='dp')loadDeposits();if(t==='us')loadUsers();if(t==='rec')loadRec()}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 $('#godp').onclick=()=>tab('dp');
 function item(t,sub,fn){const b=document.createElement('button');b.type='button';b.className='item';
