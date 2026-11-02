@@ -298,11 +298,19 @@ app.get('/api/buyer/orders', buyerOnly, run(async (req) => {
 }));
 
 // Notifikasi pesanan baru ke HP admin (error apa pun diabaikan, tidak mengganggu pesanan)
-async function notifyOrder(uid, serviceName, qty, total, queued) {
+async function notifyOrder(uid, serviceName, qty, total, queued, info) {
   try {
     const [u] = await rest('users', '?select=username&id=eq.' + enc(uid));
-    await notify('order', '🛒 Pesanan baru' + (queued ? ' (antre)' : ''),
-      ((u && u.username) || 'Pembeli') + ' memesan ' + serviceName + ' x' + qty + ' (Rp ' + Math.round(total).toLocaleString('id-ID') + ')', '/admin#ord');
+    const who = (u && u.username) || 'Pembeli';
+    const rpf = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
+    if (queued) { // saldo Sprint Pedia belum cukup: pesanan ditahan sampai admin top up
+      const i = info || {};
+      await notify('order', '⚠️ Saldo Sprint Pedia kurang',
+        who + ' pesan ' + serviceName + ' x' + qty + ' (' + rpf(total) + '). Pesanan ditahan.' +
+        (i.cost > 0 ? ' Modal ' + rpf(i.cost) + '.' : '') + (i.bal != null ? ' Saldo Sprint Pedia ' + rpf(i.bal) + '.' : '') + ' Top up agar terkirim.', '/admin#ord');
+    } else {
+      await notify('order', '🛒 Pesanan baru', who + ' memesan ' + serviceName + ' x' + qty + ' (' + rpf(total) + ')', '/admin#ord');
+    }
   } catch (e) { console.error('notifyOrder:', e.message); }
 }
 
@@ -347,7 +355,7 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
       await refund();
       return { status: false, error: 'Pesanan gagal diproses. Saldo Anda dikembalikan. Coba lagi nanti atau hubungi admin.' };
     }
-    await notifyOrder(uid, sv.name, qty, total, true);
+    await notifyOrder(uid, sv.name, qty, total, true, { cost, bal });
     return { status: true, queued: true, total, balance: left };
   }
   const pid = d.data && (d.data.id || d.data.order_id);

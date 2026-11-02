@@ -20,9 +20,24 @@ module.exports = function mountDeposit(app, d) {
   app.post('/api/buyer/deposit', buyerOnly, run(async (req) => {
     const amount = parseInt((req.body || {}).amount, 10);
     if (!(amount >= MIN && amount <= MAX)) return { status: false, error: 'Jumlah deposit minimal Rp 1.000 dan maksimal Rp 10.000.000.' };
-    const pending = await rest('deposits', '?select=id&status=eq.pending&user_id=eq.' + enc(req.buyerId));
-    if (pending.length >= 3) return { status: false, error: 'Anda masih punya 3 deposit yang menunggu. Lanjutkan atau tunggu admin memprosesnya.' };
-    const [dep] = await rest('deposits', '?select=id', { method: 'POST', prefer: 'return=representation', body: { user_id: req.buyerId, amount, proof: null, has_proof: false } });
+    const uid = req.buyerId;
+    // Bersihkan pengajuan yang tidak pernah diberi bukti (lebih dari 24 jam)
+    rest('deposits', '?status=eq.pending&has_proof=eq.false&created_at=lt.' + enc(new Date(Date.now() - 864e5).toISOString()), { method: 'DELETE' }).catch(() => {});
+    const openOne = async () => (await rest('deposits', '?select=id&status=eq.pending&has_proof=eq.false&order=id.desc&limit=1&user_id=eq.' + enc(uid)))[0];
+    // Sudah ada pengajuan yang belum diberi bukti? Pakai yang itu (nominal diperbarui), jangan buat baris baru.
+    let dep = await openOne();
+    if (dep) {
+      await rest('deposits', '?id=eq.' + dep.id + '&status=eq.pending&has_proof=eq.false', { method: 'PATCH', body: { amount } });
+      return { status: true, id: dep.id };
+    }
+    const pending = await rest('deposits', '?select=id&status=eq.pending&user_id=eq.' + enc(uid));
+    if (pending.length >= 3) return { status: false, error: 'Anda masih punya 3 deposit yang menunggu. Tunggu admin memprosesnya.' };
+    try {
+      [dep] = await rest('deposits', '?select=id', { method: 'POST', prefer: 'return=representation', body: { user_id: uid, amount, proof: null, has_proof: false } });
+    } catch (e) { // dua permintaan bersamaan: yang kedua memakai baris dari yang pertama
+      dep = await openOne();
+      if (!dep) throw e;
+    }
     return { status: true, id: dep && dep.id };
   }));
 
@@ -79,7 +94,7 @@ module.exports = function mountDeposit(app, d) {
   app.get('/api/admin/deposits', adminOnly, run(async (req) => {
     const done = req.query.status === 'done';
     const q = '?select=id,user_id,amount,status,has_proof,created_at&' +
-      (done ? 'status=in.(approved,rejected)&order=id.desc&limit=30' : 'status=eq.pending&order=id.asc&limit=100');
+      (done ? 'status=in.(approved,rejected)&order=id.desc&limit=30' : 'status=eq.pending&has_proof=eq.true&order=id.asc&limit=100');
     return { status: true, data: await withNames(await rest('deposits', q)) };
   }));
 
