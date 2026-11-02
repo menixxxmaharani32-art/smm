@@ -580,7 +580,7 @@ const LOGIN = page('Alzz Pedia', `
 <p class="muted" style="margin-top:18px;text-align:center">Belum punya akun? <a href="/#daftar" style="color:var(--accent);font-weight:700">Daftar</a></p></section>`, `
 document.getElementById('f').onsubmit=async ev=>{ev.preventDefault();const e=document.getElementById('e');e.textContent='';
 try{const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:document.getElementById('u').value.trim(),password:document.getElementById('p').value,remember:document.getElementById('rem').checked})});
-const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`);
+const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error||'Gagal masuk.';}catch{e.textContent='Tidak bisa terhubung ke server.'}};`, 'auth');
 
 const ADMIN_PAGE = require('./page-admin');
 const BUYER_PAGE = require('./page-buyer');
