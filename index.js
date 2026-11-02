@@ -552,7 +552,7 @@ const LOGIN = page('Alzz Pedia', `
 <section class="box" id="auth"><form id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
-<label class="remember"><input type="checkbox" id="rem"><span>Ingat saya di perangkat ini</span></label>
+<label class="remember"><input type="checkbox" id="rem"><span>Ingat saya</span></label>
 <div class="err" id="e" role="alert"></div>
 <button type="submit" style="width:100%">Masuk</button></form>
 <p class="muted" style="margin-top:18px;text-align:center">Belum punya akun? <a href="/#daftar" style="color:var(--accent);font-weight:700">Daftar</a></p></section>`, `

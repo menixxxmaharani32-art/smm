@@ -10,7 +10,7 @@ module.exports = {
 <form id="af" autocomplete="on">
 <label for="a_user">Username</label><input id="a_user" autocapitalize="none" autocomplete="username" required>
 <label for="a_pass">Password</label><input id="a_pass" type="password" autocomplete="current-password" required>
-<label class="remember" id="a_rm"><input type="checkbox" id="a_rem"><span>Ingat saya di perangkat ini</span></label>
+<label class="remember" id="a_rm"><input type="checkbox" id="a_rem"><span>Ingat saya</span></label>
 <div id="a_p2" class="hide"><label for="a_pass2">Ulangi password</label><input id="a_pass2" type="password" autocomplete="new-password"></div>
 <p class="muted" id="a_hint" style="margin-top:8px;font-size:.88rem"></p>
 <div class="err" id="a_msg" role="alert"></div>
@@ -59,10 +59,9 @@ module.exports = {
 <div id="dv_pay" class="hide">
 <button type="button" class="ghost" id="dback">&larr; Kembali</button>
 <section class="box"><h2>Pembayaran</h2>
-<div class="due"><div><span class="muted">Jumlah yang harus dibayar</span><b id="dpay_amt"></b></div><button type="button" class="ghost" id="dcopy">Salin</button></div>
 <label>Pilih metode pembayaran</label><div class="methods" id="methods"></div><div id="pay"></div></section>
 <form class="box" id="pf" autocomplete="off"><h2>Upload bukti transfer</h2>
-<p class="muted" style="margin-top:4px;font-size:.88rem">Pastikan bukti transfer sesuai jumlah yang harus dibayar.</p>
+<div class="due"><span class="muted">Jumlah yang harus dibayar</span><b id="dpay_amt"></b></div>
 <label class="drop"><input id="d_proof" type="file" accept="image/*"><span id="d_fn">Pilih foto bukti transfer</span></label>
 <div class="err" id="pmsg" role="status"></div><button type="submit" id="pgo" style="width:100%">Kirim bukti transfer</button></form>
 </div>
@@ -127,9 +126,8 @@ function openQris(u){
  cl.onclick=close;ov.onclick=e=>{if(e.target===ov)close()};document.addEventListener('keydown',key);
  act.append(dl,cl);card.append(t,i,act);ov.append(card);document.body.append(ov);document.body.style.overflow='hidden';cl.focus()}
 let curDep=null,payInfo=null,method=null;
-$('#dcopy').onclick=async()=>{const b=$('#dcopy');try{await navigator.clipboard.writeText(String(Math.round(Number(curDep.amount))));b.textContent='Tersalin'}catch{b.textContent='Salin manual'}};
 function dview(v){$('#dv_list').classList.toggle('hide',v!=='list');$('#dv_pay').classList.toggle('hide',v!=='pay');window.scrollTo(0,0)}
-async function openPay(dep){curDep=dep;method=null;$('#dpay_amt').textContent=rp(dep.amount);$('#dcopy').textContent='Salin';
+async function openPay(dep){curDep=dep;method=null;$('#dpay_amt').textContent=rp(dep.amount);
  $('#pmsg').textContent='';$('#d_proof').value='';$('#d_fn').textContent='Pilih foto bukti transfer';$('#pay').textContent='';dview('pay');
  const mb=$('#methods');mb.textContent='Memuat…';
  try{const r=await fetch('/api/buyer/payment');const d=await r.json();payInfo=d;mb.textContent='';

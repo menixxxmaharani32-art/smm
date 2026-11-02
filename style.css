@@ -230,3 +230,8 @@ a.qris-dl{justify-self:center;width:auto;padding:8px 18px;min-height:38px;font-s
 .due span{display:block;font-size:.82rem}
 .due b{display:block;font-size:1.3rem;font-weight:800;color:var(--ink)}
 .due button{margin:0;padding:6px 14px;min-height:34px;font-size:.85rem;border-radius:10px;background:var(--surface);flex:none}
+
+/* jumlah yang harus dibayar: netral, tanpa tombol */
+.due{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;padding:12px 14px;border-radius:14px;background:var(--bg);border:1px solid var(--line)}
+.due span{display:inline;font-size:.9rem}
+.due b{display:inline;font-size:1.1rem;font-weight:800;color:var(--ink)}
