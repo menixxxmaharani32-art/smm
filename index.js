@@ -375,7 +375,7 @@ app.get('/api/admin/services/search', adminOnly, run(async (req) => {
 
 // Pendapatan penjualan = jumlah harga semua pesanan pembeli (hari ini & bulan ini dihitung menurut WIB)
 app.get('/api/admin/revenue', adminOnly, run(async () => {
-  let sel = 'price,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0;
+  let sel = 'price,created_at', hasDate = true, total = 0, today = 0, month = 0, count = 0, daily = {};
   const wib = (t) => new Date(new Date(t).getTime() + 7 * 36e5).toISOString();
   const nowW = wib(Date.now());
   const dayKey = nowW.slice(0, 10), monKey = nowW.slice(0, 7);
@@ -391,12 +391,13 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
       total += p; count++;
       if (hasDate && o.created_at) {
         const w = wib(o.created_at);
+        const dk = w.slice(0, 10); (daily[dk] = daily[dk] || [0, 0]); daily[dk][0] += p; daily[dk][1]++;
         if (w.slice(0, 7) === monKey) { month += p; if (w.slice(0, 10) === dayKey) today += p; }
       }
     }
     if (part.length < 1000) break;
   }
-  return { status: true, total, today, month, orders: count, has_date: hasDate };
+  return { status: true, total, today, month, orders: count, has_date: hasDate, daily, now: dayKey };
 }));
 
 // Statistik pesanan per layanan (dihitung dari pesanan di web ini)
@@ -544,7 +545,7 @@ require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buy
 const page = (title, body, script, cls) => `<!doctype html><html lang="id"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1"><title>${title}</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/style.css"></head><body><main class="${cls || ''}">${body}</main><script>${script}</script></body></html>`;
+<link rel="stylesheet" href="/style.css"></head><body class="${cls || ''}"><main class="${cls || ''}">${body}</main><script>${script}</script></body></html>`;
 
 const LOGIN = page('Alzz Pedia', `
 <div class="brand"><span class="logo">A</span><span>Alzz Pedia</span></div>
@@ -562,7 +563,7 @@ const d=await r.json();if(d.ok)location.href='/admin';else e.textContent=d.error
 
 const ADMIN_PAGE = require('./page-admin');
 const BUYER_PAGE = require('./page-buyer');
-const ADMIN = page(ADMIN_PAGE.title, ADMIN_PAGE.body, ADMIN_PAGE.script, 'wide');
+const ADMIN = page(ADMIN_PAGE.title, ADMIN_PAGE.body, ADMIN_PAGE.script, 'wide adm');
 const BUYER = page(BUYER_PAGE.title, BUYER_PAGE.body, BUYER_PAGE.script);
 
 /* ================= Rute halaman ================= */

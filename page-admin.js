@@ -4,25 +4,29 @@ module.exports = {
   body: `
 <div class="top"><h1>Dasbor admin</h1><button class="ghost" id="logout" type="button">Keluar</button></div>
 <nav class="tabs">
-<button class="tab" type="button" data-t="home" aria-selected="true">Ringkasan</button>
+<button class="tab" type="button" data-t="home" aria-selected="true">Pendapatan</button>
 <button class="tab" type="button" data-t="dp" id="dtab" aria-selected="false">Deposit</button>
 <button class="tab" type="button" data-t="us" aria-selected="false">Pembeli</button>
 <button class="tab" type="button" data-t="rec" aria-selected="false">Rekomendasi</button>
 <button class="tab" type="button" data-t="pay" aria-selected="false">Pembayaran</button>
 <button class="tab" type="button" data-t="set" aria-selected="false">Pengaturan</button></nav>
 
-<div data-p="home">
-<section class="box"><p class="muted">Saldo Sprint Pedia</p><div class="saldo" id="saldo">…</div>
-<p class="muted" id="provider"></p><button class="ghost" id="refresh" type="button" style="margin-top:14px">Segarkan saldo</button></section>
-<section class="box"><p class="muted">Deposit menunggu persetujuan</p><div class="saldo" id="pcount">…</div>
-<button class="ghost" id="godp" type="button" style="margin-top:14px">Lihat deposit</button></section>
-<section class="box"><p class="muted">Pesanan menunggu saldo Sprint Pedia</p><div class="saldo" id="qcount">…</div>
-<p class="muted" style="margin-top:6px;font-size:.88rem">Berstatus Pending di pembeli. Diproses otomatis setelah saldo Sprint Pedia terisi.</p></section>
-<section class="box rev-box"><p class="muted">Pendapatan penjualan</p><div class="saldo" id="rtotal">…</div>
-<div class="rev"><span class="muted">Hari ini</span><b id="rtoday">…</b></div>
-<div class="rev"><span class="muted">Bulan ini</span><b id="rmonth">…</b></div>
-<div class="rev"><span class="muted">Jumlah pesanan</span><b id="rcount">…</b></div>
-<p class="muted" id="rnote" style="margin-top:10px;font-size:.85rem"></p></section></div>
+<div data-p="home"><div class="hm">
+<section class="hero"><p class="lbl">Pendapatan bulan ini</p><div class="big" id="rmonth">…</div><p class="sub" id="rmonthsub"></p></section>
+<div class="g2">
+<section class="stat"><p class="lbl">Hari ini</p><div class="num" id="rtoday">…</div><p class="sub" id="rtodaysub"></p></section>
+<section class="stat"><p class="lbl">Minggu ini</p><div class="num" id="rweek">…</div><p class="sub" id="rweeksub"></p></section>
+<section class="stat"><p class="lbl">Total keseluruhan</p><div class="num" id="rtotal">…</div><p class="sub" id="rcount"></p></section>
+<section class="stat" id="godp" role="button" tabindex="0"><p class="lbl">Menunggu konfirmasi</p><div class="num warn" id="pcount">…</div><p class="sub">deposit menunggu persetujuan</p></section>
+</div>
+<section class="box"><h2 class="ttl">Rincian Pendapatan</h2>
+<div class="seg2" id="rseg"><button type="button" data-m="d" aria-selected="true">Harian</button><button type="button" data-m="w" aria-selected="false">Mingguan</button><button type="button" data-m="m" aria-selected="false">Bulanan</button></div>
+<div class="rhead"><span class="muted" id="rrange"></span><b id="rsum"></b></div>
+<div class="bars" id="rbars"></div><div id="rlist" style="margin-top:8px"></div>
+<p class="muted" id="rnote" style="margin-top:10px;font-size:.85rem"></p></section>
+<section class="box"><p class="lbl">Saldo Sprint Pedia</p><div class="saldo" id="saldo">…</div><p class="muted" id="provider"></p><button class="ghost" id="refresh" type="button" style="margin-top:14px">Segarkan saldo</button></section>
+<section class="box"><p class="lbl">Pesanan menunggu saldo Sprint Pedia</p><div class="saldo" id="qcount">…</div><p class="muted" style="margin-top:6px;font-size:.85rem">Diproses otomatis setelah saldo Sprint Pedia terisi.</p></section>
+</div></div>
 
 <div data-p="dp" class="hide">
 <section class="box"><h2>Menunggu persetujuan</h2><div id="dpend" style="margin-top:8px"></div></section>
@@ -93,12 +97,41 @@ async function balance(){$('#provider').textContent='Mengambil saldo…';
  try{const d=await api('/api/profile');
   if(d.status){$('#saldo').textContent=rp(d.data.balance);$('#provider').textContent='Terhubung sebagai '+d.data.username}
   else{$('#saldo').textContent='—';$('#provider').textContent=errOf(d)}}catch{}}
+let RV=null,rmode='d';
+const D1=864e5,NL=String.fromCharCode(10),ymd=t=>new Date(t).toISOString().slice(0,10),pd=s=>Date.parse(s+'T00:00:00Z');
+const MON=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agu','Sep','Okt','Nov','Des'],HR=['Min','Sen','Sel','Rab','Kam','Jum','Sab'],HRF=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+const kk=n=>n>=1e6?(n/1e6).toFixed(n%1e6?1:0).replace('.',',')+' jt':n>=1e3?Math.round(n/1e3)+' rb':String(n);
+function big(el,n){el.textContent='';const s=document.createElement('small');s.textContent='Rp';el.append(s,' '+Math.round(Number(n)||0).toLocaleString('id-ID'))}
+function sumR(a,b){let s=0,c=0;for(let t=pd(a);t<=pd(b);t+=D1){const e=RV.daily[ymd(t)];if(e){s+=e[0];c+=e[1]}}return[s,c]}
+function periods(){const t0=pd(RV.now),out=[];
+ if(rmode==='d')for(let i=0;i<14;i++){const t=t0-i*D1,s=ymd(t),d=new Date(t),r=sumR(s,s);out.push({v:r[0],c:r[1],sh:String(d.getUTCDate()),sh2:HR[d.getUTCDay()],lbl:HRF[d.getUTCDay()]+', '+d.getUTCDate()+' '+MON[d.getUTCMonth()]})}
+ else if(rmode==='w'){const dow=(new Date(t0).getUTCDay()+6)%7;for(let i=0;i<8;i++){const st=t0-dow*D1-i*7*D1,en=st+6*D1,r=sumR(ymd(st),ymd(en)),a=new Date(st),b=new Date(en);out.push({v:r[0],c:r[1],sh:String(a.getUTCDate()),sh2:MON[a.getUTCMonth()],lbl:a.getUTCDate()+' '+MON[a.getUTCMonth()]+' - '+b.getUTCDate()+' '+MON[b.getUTCMonth()]})}}
+ else{const n=new Date(t0);for(let i=0;i<6;i++){const st=Date.UTC(n.getUTCFullYear(),n.getUTCMonth()-i,1),en=Date.UTC(n.getUTCFullYear(),n.getUTCMonth()-i+1,0),r=sumR(ymd(st),ymd(en)),d=new Date(st);out.push({v:r[0],c:r[1],sh:MON[d.getUTCMonth()],sh2:String(d.getUTCFullYear()).slice(2),lbl:MON[d.getUTCMonth()]+' '+d.getUTCFullYear()})}}
+ return out}
+function drawRev(){if(!RV||!RV.has_date)return;const P=periods(),R=P.slice().reverse(),max=Math.max(1,...P.map(x=>x.v));
+ $('#rrange').textContent=rmode==='d'?'14 hari terakhir':rmode==='w'?'8 minggu terakhir':'6 bulan terakhir';
+ $('#rsum').textContent=rp(P.reduce((a,x)=>a+x.v,0))+' · '+P.reduce((a,x)=>a+x.c,0)+' pesanan';
+ const bx=$('#rbars');bx.textContent='';bx.style.gridTemplateColumns='repeat('+R.length+',1fr)';
+ R.forEach(x=>{const c=document.createElement('div');c.className='bc';const t=document.createElement('span');t.className='bv';t.textContent=x.v?kk(x.v):'';
+  const b=document.createElement('i');b.style.height=Math.max(3,Math.round(x.v/max*110))+'px';if(!x.v)b.className='z';
+  const l=document.createElement('b');l.textContent=x.sh;const l2=document.createElement('small');l2.textContent=x.sh2;c.append(t,b,l,l2);bx.append(c)});
+ const ls=$('#rlist');ls.textContent='';
+ P.forEach((x,i)=>{const r=document.createElement('div');r.className='rr'+(i===0?' now':'');const a=document.createElement('div'),t=document.createElement('b');t.textContent=x.lbl;
+  if(i===0){const g=document.createElement('em');g.textContent=rmode==='d'?'Hari ini':rmode==='w'?'Minggu ini':'Bulan ini';t.append(' ',g)}
+  const s=document.createElement('p');s.className='muted';s.textContent=x.c+' pesanan';a.append(t,s);
+  const v=document.createElement('span');v.className=x.v?'pos':'muted';v.textContent=rp(x.v);r.append(a,v);ls.append(r)})}
+document.querySelectorAll('#rseg button').forEach(b=>b.onclick=()=>{rmode=b.dataset.m;document.querySelectorAll('#rseg button').forEach(x=>x.setAttribute('aria-selected',String(x===b)));drawRev()});
 async function loadRevenue(){
  try{const d=await api('/api/admin/revenue');
   if(!d.status){$('#rnote').textContent=errOf(d);return}
-  $('#rtotal').textContent=rp(d.total);$('#rcount').textContent=Number(d.orders).toLocaleString('id-ID');
-  $('#rtoday').textContent=d.has_date?rp(d.today):'-';$('#rmonth').textContent=d.has_date?rp(d.month):'-';
-  $('#rnote').textContent=d.has_date?'Total harga pesanan pembeli (waktu WIB).':'Data tanggal pesanan belum tersedia, hanya total yang ditampilkan.'}
+  RV=d;big($('#rtotal'),d.total);$('#rcount').textContent=Number(d.orders).toLocaleString('id-ID')+' pesanan';
+  if(!d.has_date){$('#rnote').textContent='Data tanggal pesanan belum tersedia, hanya total yang ditampilkan.';return}
+  const t0=pd(d.now),wk=t0-((new Date(t0).getUTCDay()+6)%7)*D1,n=new Date(t0),Y=n.getUTCFullYear(),M=n.getUTCMonth();
+  const m=sumR(ymd(Date.UTC(Y,M,1)),d.now),pm=sumR(ymd(Date.UTC(Y,M-1,1)),ymd(Date.UTC(Y,M,0))),td=sumR(d.now,d.now),yd=sumR(ymd(t0-D1),ymd(t0-D1)),w=sumR(ymd(wk),d.now),pw=sumR(ymd(wk-7*D1),ymd(wk-D1));
+  big($('#rmonth'),m[0]);$('#rmonthsub').textContent=m[1]+' pesanan · Bulan lalu '+rp(pm[0]);
+  big($('#rtoday'),td[0]);$('#rtodaysub').textContent=td[1]+' pesanan'+NL+'Kemarin '+rp(yd[0]);
+  big($('#rweek'),w[0]);$('#rweeksub').textContent=w[1]+' pesanan'+NL+'Minggu lalu '+rp(pw[0]);
+  $('#rnote').textContent='Total harga pesanan pembeli (waktu WIB).';drawRev()}
  catch{}}
 function syncAll(){return post('/api/admin/orders/sync').then(d=>{if(d&&d.status)$('#qcount').textContent=d.queued||0}).catch(()=>{})}
 $('#refresh').onclick=()=>{balance();syncAll();loadRevenue()};
