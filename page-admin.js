@@ -2,7 +2,7 @@
 module.exports = {
   title: 'Dasbor admin',
   body: `
-<div class="top"><h1>Dasbor admin</h1><button class="ghost" id="logout" type="button">Keluar</button></div>
+<div class="top"><h1>Dasbor admin</h1><div style="display:flex;gap:8px"><button class="ghost" id="bell" type="button" aria-label="Notifikasi HP">🔔</button><button class="ghost" id="logout" type="button">Keluar</button></div></div>
 <nav class="tabs">
 <button class="tab" type="button" data-t="home" aria-selected="true">Pendapatan</button>
 <button class="tab" type="button" data-t="ord" aria-selected="false">Pesanan</button>
@@ -52,7 +52,10 @@ module.exports = {
 <p class="muted" style="margin-top:6px">Tampil paling atas di halaman pembeli. Maksimal 10 layanan.</p>
 <div id="reclist" style="margin-top:8px"></div><div class="err" id="recmsg" role="status"></div></section>
 <section class="box"><h2>Tambah layanan</h2>
-<input id="rec_q" placeholder="Cari nama layanan atau kategori" style="margin-top:12px" autocomplete="off">
+<p class="muted" style="margin-top:6px">Tambah lewat ID layanan (boleh banyak ID, pisahkan dengan koma).</p>
+<div class="row" style="margin-top:8px"><input id="rec_id" placeholder="Contoh: 1234 atau 1234, 5678" autocomplete="off" autocapitalize="none" spellcheck="false"><button type="button" id="rec_add">Tambah</button></div>
+<p class="muted" style="margin-top:14px">Atau cari lewat nama:</p>
+<input id="rec_q" placeholder="Cari nama layanan atau kategori" style="margin-top:8px" autocomplete="off">
 <div id="recres" style="margin-top:8px"></div></section></div>
 
 <div data-p="pay" class="hide">
@@ -248,6 +251,17 @@ async function searchRec(){const q=$('#rec_q').value.trim();const box=$('#recres
     if(has)return;if(REC.length>=10){say($('#recmsg'),false,'Maksimal 10 layanan rekomendasi.');return}
     REC.push(x);saveRec()});
    if(has)it.style.opacity='.55';box.append(it)})}catch{}}
+async function addRecById(){const m=$('#recmsg'),inp=$('#rec_id'),v=inp.value.trim();if(!v)return;
+ try{const d=await api('/api/admin/services/lookup?ids='+encodeURIComponent(v));
+  if(!d.status){say(m,false,errOf(d));return}
+  let add=0,dup=0,full=false;
+  for(const x of d.data){if(REC.some(r=>r.id===x.id)){dup++;continue}if(REC.length>=10){full=true;break}REC.push(x);add++}
+  if(add){await saveRec();inp.value=''}
+  const nf=d.notFound||[],parts=[];
+  if(add)parts.push(add+' layanan ditambahkan');if(dup)parts.push(dup+' sudah ada');
+  if(full)parts.push('batas 10 layanan tercapai');if(nf.length)parts.push('ID tidak ditemukan: '+nf.join(', '));
+  say(m,add>0&&!nf.length&&!full,parts.join('. ')||'Tidak ada yang ditambahkan.')}catch{}}
+$('#rec_add').onclick=addRecById;$('#rec_id').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addRecById()}};
 let rtm;$('#rec_q').oninput=()=>{clearTimeout(rtm);rtm=setTimeout(searchRec,350)};
 
 /* ---------- Pembayaran (QRIS & Dana) ---------- */
@@ -272,7 +286,8 @@ init();loadWa();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();
 const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 let pushOn=false,lastEv=0;
 function b64Key(b){const p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/')),a=new Uint8Array(r.length);for(let i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a}
-function paintPush(){const st=$('#pn_st'),on=$('#pn_on'),ts=$('#pn_test');
+function paintPush(){const st=$('#pn_st'),on=$('#pn_on'),ts=$('#pn_test'),bl=$('#bell');
+ bl.textContent=pushOn?'🔔 On':'🔔';bl.classList.toggle('ghost',!pushOn);
  if(!PUSH_OK){st.textContent='Browser ini belum mendukung notifikasi.';on.classList.add('hide');return}
  if(Notification.permission==='denied'){st.textContent='Notifikasi diblokir. Izinkan lewat pengaturan situs di browser.';on.classList.add('hide');return}
  st.textContent=pushOn?'Aktif di perangkat ini ✓':'Belum aktif';
@@ -286,10 +301,11 @@ async function pushSub(){const reg=await navigator.serviceWorker.register('/sw.j
  const d=await post('/api/admin/push/subscribe',sub.toJSON());if(!d.ok)throw new Error(d.error||'Gagal menyimpan langganan.')}
 async function pushUnsub(){const reg=await navigator.serviceWorker.getRegistration('/sw.js');const sub=reg&&await reg.pushManager.getSubscription();
  if(sub){try{await post('/api/admin/push/unsubscribe',{endpoint:sub.endpoint})}catch{}await sub.unsubscribe()}}
-$('#pn_on').onclick=async()=>{const m=$('#pn_msg');m.textContent='';
- try{if(pushOn){await pushUnsub();pushOn=false}
+async function togglePush(){const m=$('#pn_msg');m.textContent='';
+ try{if(pushOn){if(!confirm('Matikan notifikasi di HP ini?'))return;await pushUnsub();pushOn=false}
   else{const p=await Notification.requestPermission();if(p!=='granted'){say(m,false,'Izin notifikasi tidak diberikan.');paintPush();return}await pushSub();pushOn=true;say(m,true,'Notifikasi aktif. Coba tombol Tes notifikasi.')}}
- catch(e){say(m,false,e.message||'Gagal mengaktifkan notifikasi.')}paintPush()};
+ catch(e){say(m,false,e.message||'Gagal mengaktifkan notifikasi.');alert(e.message||'Gagal mengaktifkan notifikasi.')}paintPush()}
+$('#pn_on').onclick=togglePush;$('#bell').onclick=togglePush;
 $('#pn_test').onclick=async()=>{const m=$('#pn_msg');try{const d=await post('/api/admin/push/test');say(m,d.ok,d.ok?'Tes dikirim. Notifikasi akan muncul sebentar lagi.':errOf(d))}catch{}};
 async function initPush(){if(!PUSH_OK){paintPush();return}
  try{const reg=await navigator.serviceWorker.getRegistration('/sw.js');const sub=reg&&await reg.pushManager.getSubscription();

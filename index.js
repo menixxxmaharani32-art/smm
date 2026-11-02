@@ -397,6 +397,18 @@ app.post('/api/admin/recommended', adminOnly, run(async (req, res) => {
   await saveSettings({ recommended: JSON.stringify(ids) });
   return { status: true };
 }));
+// Cari layanan lewat ID (dipakai untuk menambah rekomendasi dengan mengetik ID layanan; boleh banyak ID dipisah koma/spasi)
+app.get('/api/admin/services/lookup', adminOnly, run(async (req, res) => {
+  const ids = [...new Set(String(req.query.ids || '').split(/[\s,;]+/).filter(Boolean))].slice(0, 10);
+  const valid = ids.filter((i) => /^[A-Za-z0-9_-]{1,40}$/.test(i));
+  if (!valid.length) { res.status(400); return { status: false, error: 'Masukkan ID layanan yang valid (angka/huruf).' }; }
+  let rows = [];
+  try { rows = await rest('services', '?select=id,category,name,price:data->>price&id=in.(' + valid.map(enc).join(',') + ')'); } catch (e) { rows = []; }
+  const m = num((await getSettings()).markup_percent);
+  const data = valid.map((i) => rows.find((r) => String(r.id) === i)).filter(Boolean).map((r) => svcRow(r, m));
+  const found = new Set(data.map((x) => x.id));
+  return { status: true, data, notFound: valid.filter((i) => !found.has(i)) };
+}));
 app.get('/api/admin/services/search', adminOnly, run(async (req) => {
   const q = String(req.query.q || '').replace(/[^\p{L}\p{N} ]/gu, ' ').trim().replace(/\s+/g, '*');
   if (q.length < 2) return { status: true, data: [] };
