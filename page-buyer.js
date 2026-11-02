@@ -71,6 +71,7 @@ module.exports = {
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
+const note=(el,k,t)=>{el.style.color=k==='ok'?'var(--ok)':k==='info'?'var(--muted)':'';el.textContent=t};
 let SV=[],sel=null,tot=0,me=null,loaded=false,mode='in';
 
 /* ---------- Masuk / Daftar ---------- */
@@ -163,19 +164,19 @@ $('#d_proof').addEventListener('change',()=>{const f=$('#d_proof').files[0];$('#
 $('#df').onsubmit=async e=>{e.preventDefault();const m=$('#dmsg');m.style.color='';
  const amt=parseInt($('#d_amt').value,10)||0;
  if(amt<1000){m.textContent='Jumlah deposit minimal Rp 1.000.';return}
- const go=$('#dgo');go.disabled=true;m.textContent='Mengajukan…';
+ const go=$('#dgo');go.disabled=true;note(m,'info','Mengajukan…');
  try{const d=await post('/api/buyer/deposit',{amount:amt});
   if(d.status){m.textContent='';$('#d_amt').value='';loadDeposits();openPay({id:d.id,amount:amt})}
-  else m.textContent=d.error||'Gagal mengajukan deposit.'}
- catch{m.textContent='Tidak bisa terhubung ke server.'}
+  else note(m,'',d.error||'Gagal mengajukan deposit.')}
+ catch{note(m,'','Tidak bisa terhubung ke server.')}
  go.disabled=false};
 $('#pf').onsubmit=async e=>{e.preventDefault();const m=$('#pmsg');m.style.color='';
  const f=$('#d_proof').files[0];if(!f){m.textContent='Bukti transfer wajib diunggah.';return}
- if(!curDep)return;const go=$('#pgo');go.disabled=true;m.textContent='Mengirim…';
+ if(!curDep)return;const go=$('#pgo');go.disabled=true;note(m,'info','Mengirim…');
  try{const d=await post('/api/buyer/deposit/'+curDep.id+'/proof',{proof:await img2url(f,1000,.7)});
-  if(d.status){curDep=null;dview('list');const l=$('#dmsg');l.style.color='var(--accent)';l.textContent='Bukti terkirim. Saldo masuk setelah admin menyetujui.';loadDeposits()}
-  else m.textContent=d.error||'Gagal mengirim bukti.'}
- catch{m.textContent='Gagal mengirim. Coba lagi atau gunakan foto yang lebih kecil.'}
+  if(d.status){curDep=null;dview('list');note($('#dmsg'),'ok','Bukti terkirim. Saldo masuk setelah admin menyetujui.');loadDeposits()}
+  else note(m,'',d.error||'Gagal mengirim bukti.')}
+ catch{note(m,'','Gagal mengirim. Coba lagi atau gunakan foto yang lebih kecil.')}
  go.disabled=false};
 $('#dback').onclick=()=>{dview('list');loadDeposits()};
 
@@ -232,7 +233,7 @@ async function loadStats(x){const box=$('#stats');box.textContent='';
   box.append(card)}
  catch{}}
 function calc(){if(!sel)return;const q=Number($('#b_qty').value)||0;tot=Math.ceil(q*sel.price/1000);$('#total').textContent=rp(tot);
- $('#bmsg').textContent=(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':''}
+ note($('#bmsg'),'',(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':'')}
 $('#cat').onchange=showSvs;$('#b_qty').oninput=calc;
 async function loadCatalog(){loaded=true;$('#cmsg').textContent='Memuat layanan…';
  try{const r=await fetch('/api/catalog');if(r.status===401){loaded=false;setMe(null);return}
@@ -244,13 +245,13 @@ async function loadCatalog(){loaded=true;$('#cmsg').textContent='Memuat layanan�
 /* ---------- Pesan ---------- */
 $('#bf').onsubmit=async e=>{e.preventDefault();
  if(!sel)return;const q=Number($('#b_qty').value)||0;
- if(!$('#b_link').value.trim()){$('#bmsg').textContent='Isi link target.';return}
+ if(!$('#b_link').value.trim()){note($('#bmsg'),'','Isi link target.');return}
  if(!confirm('Pesan '+q+' untuk '+rp(tot)+'? Saldo Anda akan terpotong.'))return;
- $('#bmsg').textContent='Memproses…';
+ note($('#bmsg'),'info','Memproses…');
  try{const d=await post('/api/buyer/order',{service:sel.id,target:$('#b_link').value.trim(),quantity:q});
-  if(d.status){$('#bmsg').textContent=d.queued?'Pesanan diterima dengan status Pending. Akan diproses otomatis.':'Pesanan berhasil dibuat.';$('#b_link').value='';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders()}
-  else $('#bmsg').textContent=d.error||'Gagal memesan.'}
- catch{$('#bmsg').textContent='Tidak bisa terhubung ke server.'}};
+  if(d.status){note($('#bmsg'),'ok',d.queued?'Pesanan diterima dengan status Pending. Akan diproses otomatis.':'Pesanan berhasil dibuat.');$('#b_link').value='';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders()}
+  else note($('#bmsg'),'',d.error||'Gagal memesan.')}
+ catch{note($('#bmsg'),'','Tidak bisa terhubung ke server.')}};
 
 function stInfo(s){const t=String(s||'').toLowerCase();
  if(!t||t.indexOf('pend')>-1||t.indexOf('wait')>-1)return['Pending','pending'];
@@ -271,7 +272,7 @@ function addRefillBtn(row,id){if(row.querySelector('.rf'))return;
  const b=document.createElement('button');b.type='button';b.className='ghost rf';b.textContent='Ajukan refill';
  const m=document.createElement('p');m.className='muted';m.style.cssText='margin-top:6px;font-size:.88rem';
  b.onclick=async()=>{if(!confirm('Ajukan refill untuk pesanan ini?'))return;b.disabled=true;m.style.color='';m.textContent='Mengirim…';
-  try{const d=await post('/api/buyer/refill',{id});m.style.color=d.status?'var(--accent)':'var(--danger)';m.textContent=d.status?(d.message||'Refill diajukan.'):(d.error||'Refill gagal.')}
+  try{const d=await post('/api/buyer/refill',{id});m.style.color=d.status?'var(--ok)':'var(--danger)';m.textContent=d.status?(d.message||'Refill diajukan.'):(d.error||'Refill gagal.')}
   catch{m.style.color='var(--danger)';m.textContent='Tidak bisa terhubung ke server.'}
   b.disabled=false};
  row.append(b,m)}
