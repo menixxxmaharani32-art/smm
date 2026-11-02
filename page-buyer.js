@@ -48,13 +48,14 @@ module.exports = {
 
 <div data-p="dp" class="hide">
 <section class="box"><h2>Cara deposit</h2>
-<p class="muted" style="margin-top:6px">Transfer lewat QRIS atau Dana, lalu isi form di bawah. Saldo masuk setelah admin menyetujui.</p>
+<ol class="steps"><li><b>1</b><span>Transfer</span></li><li><b>2</b><span>Kirim bukti</span></li><li><b>3</b><span>Saldo masuk</span></li></ol>
 <div id="pay"></div></section>
 <form class="box" id="df" autocomplete="off"><h2>Ajukan deposit</h2>
 <label for="d_amt">Jumlah deposit (Rp)</label><input id="d_amt" inputmode="numeric" placeholder="Minimal 1000">
-<label for="d_proof">Bukti transfer (foto, wajib)</label><input id="d_proof" type="file" accept="image/*">
+<label for="d_proof">Bukti transfer (foto, wajib)</label>
+<label class="drop"><input id="d_proof" type="file" accept="image/*"><span id="d_fn">Pilih foto bukti transfer</span></label>
 <div class="err" id="dmsg" role="status"></div><button type="submit" id="dgo" style="width:100%">Kirim deposit</button></form>
-<section class="box"><h2>Riwayat deposit</h2><div id="dlist" style="margin-top:8px"></div></section>
+<section class="box"><h2>Riwayat deposit</h2><div id="dlist" class="muted" style="margin-top:6px"></div></section>
 </div>
 </div>`,
   script: `
@@ -133,11 +134,12 @@ const DST={pending:['Menunggu persetujuan',''],approved:['Disetujui','var(--acce
 async function loadDeposits(){const box=$('#dlist');
  try{const r=await fetch('/api/buyer/deposits');if(!r.ok)return;const d=await r.json();box.textContent='';
   if(!d.data||!d.data.length){box.textContent='Belum ada deposit.';return}
-  d.data.forEach(x=>{const row=document.createElement('div');row.className='ord';
-   const v=document.createElement('p');v.style.fontWeight='700';v.textContent=rp(x.amount);
-   const m=document.createElement('p');m.className='muted';m.textContent=new Date(x.created_at).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'});
-   const s=document.createElement('p');const st=DST[x.status]||[x.status,''];s.style.fontWeight='600';s.style.color=st[1];s.textContent=st[0];
-   row.append(v,m,s);box.append(row)})}catch{}}
+  d.data.forEach(x=>{const row=document.createElement('div');row.className='dep';
+   const l=document.createElement('div');const v=document.createElement('p');v.className='dv';v.textContent=rp(x.amount);
+   const m=document.createElement('p');m.className='muted dd';m.textContent=new Date(x.created_at).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'});l.append(v,m);
+   const s=document.createElement('span');s.className='pill '+x.status;s.textContent=(DST[x.status]||[x.status])[0];
+   row.append(l,s);box.append(row)})}catch{}}
+$('#d_proof').addEventListener('change',()=>{const f=$('#d_proof').files[0];$('#d_fn').textContent=f?f.name:'Pilih foto bukti transfer'});
 $('#df').onsubmit=async e=>{e.preventDefault();const m=$('#dmsg');m.style.color='';
  const amt=parseInt($('#d_amt').value,10)||0;
  if(amt<1000){m.textContent='Jumlah deposit minimal Rp 1.000.';return}
@@ -145,7 +147,7 @@ $('#df').onsubmit=async e=>{e.preventDefault();const m=$('#dmsg');m.style.color=
  const go=$('#dgo');go.disabled=true;m.textContent='Mengirim…';
  try{const f=$('#d_proof').files[0];const b={amount:amt,proof:await img2url(f,1000,.7)};
   const d=await post('/api/buyer/deposit',b);
-  if(d.status){m.style.color='var(--accent)';m.textContent='Deposit terkirim. Saldo masuk setelah admin menyetujui.';$('#d_amt').value='';$('#d_proof').value='';loadDeposits()}
+  if(d.status){m.style.color='var(--accent)';m.textContent='Deposit terkirim. Saldo masuk setelah admin menyetujui.';$('#d_amt').value='';$('#d_proof').value='';$('#d_fn').textContent='Pilih foto bukti transfer';loadDeposits()}
   else m.textContent=d.error||'Gagal mengirim deposit.'}
  catch{m.textContent='Gagal mengirim. Coba lagi atau gunakan foto yang lebih kecil.'}
  go.disabled=false};

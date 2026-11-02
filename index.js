@@ -543,9 +543,9 @@ const page = (title, body, script, cls) => `<!doctype html><html lang="id"><head
 <link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/style.css"></head><body><main class="${cls || ''}">${body}</main><script>${script}</script></body></html>`;
 
-const LOGIN = page('Masuk', `
-<div class="brand"><span class="logo">A</span><span>Alzz Pedia</span><span class="badge">Admin</span></div>
-<h1>Masuk Admin</h1><p class="muted">Silakan masuk ke akun Anda.</p>
+const LOGIN = page('Alzz Pedia', `
+<div class="brand"><span class="logo">A</span><span>Alzz Pedia</span></div>
+<h1>Masuk</h1><p class="muted">Masuk untuk melihat layanan dan memesan.</p>
 <form class="box" id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
 <label for="p">Password</label><input id="p" name="password" type="password" autocomplete="current-password" required>
