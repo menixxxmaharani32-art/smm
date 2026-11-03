@@ -294,6 +294,14 @@ async function checkOrder(id,badge,btn,row){if(btn){btn.disabled=true;btn.textCo
   else if(btn){btn.disabled=false;btn.textContent='Cek status'}}
  catch{if(btn){btn.disabled=false;btn.textContent='Cek status'}}
  return fin}
+function addCancelBtn(row,id){if(row.querySelector('.cx'))return;
+ const b=document.createElement('button');b.type='button';b.className='ghost cx';b.textContent='Batalkan pesanan';
+ const m=document.createElement('p');m.className='muted';m.style.cssText='margin-top:6px;font-size:.88rem';
+ b.onclick=async()=>{if(!confirm('Batalkan pesanan ini? Saldo dikembalikan jika berhasil.'))return;b.disabled=true;m.style.color='';m.textContent='Memproses...';
+  try{const d=await post('/api/buyer/cancel',{id});m.style.color=d.status?'var(--ok)':'var(--danger)';m.textContent=d.status?d.message:(d.error||'Gagal membatalkan.');
+   if(d.status){refreshBal();setTimeout(loadOrders,900)}else b.disabled=false}
+  catch{m.style.color='var(--danger)';m.textContent='Tidak bisa terhubung ke server.';b.disabled=false}};
+ row.append(b,m)}
 function addRefillBtn(row,id){if(row.querySelector('.rf'))return;
  const b=document.createElement('button');b.type='button';b.className='ghost rf';b.textContent='Ajukan refill';
  const m=document.createElement('p');m.className='muted';m.style.cssText='margin-top:6px;font-size:.88rem';
@@ -317,6 +325,7 @@ async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)re
   if(!fin){const c=document.createElement('button');c.type='button';c.className='ghost';c.textContent='Cek status';
    c.onclick=()=>checkOrder(o.id,bg,c,row);row.append(c);todo.push([o.id,bg,c,row])}
   else if(['ok','part'].indexOf(stInfo(o.status)[1])>-1)addRefillBtn(row,o.id)
+  if(stInfo(o.status)[1]==='pending')addCancelBtn(row,o.id);
   box.append(row)});
  for(const t of todo.slice(0,10)){if(mine!==oseq)break;await checkOrder(t[0],t[1],t[2],t[3])}}
 $('#orf').onclick=loadOrders;

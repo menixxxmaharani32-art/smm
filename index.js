@@ -613,6 +613,27 @@ app.get('/api/buyer/stats/:id', buyerOnly, run(async (req) => {
 }));
 
 // Refill (garansi) lewat Sprint Pedia
+// Batalkan pesanan (Cancel/Batalkan di API Sprint Pedia). Saldo dikembalikan hanya jika pembatalan berhasil.
+app.post('/api/buyer/cancel', buyerOnly, run(async (req) => {
+  if (limited(req, 'cancel')) return { status: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' };
+  const id = parseInt((req.body || {}).id, 10);
+  if (!id) return { status: false, error: 'Pesanan tidak valid.' };
+  const [o] = await rest('orders', '?select=id,status,price,provider_order_id&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId));
+  if (!o) return { status: false, error: 'Pesanan tidak ditemukan.' };
+  const g = stGroup(o.status);
+  if (g !== 'queued' && g !== 'pending') return { status: false, error: 'Pesanan ini sudah diproses dan tidak bisa dibatalkan.' };
+  if (g === 'pending') { // sudah dikirim ke provider: minta provider membatalkan dulu
+    if (!o.provider_order_id) return { status: false, error: 'Pesanan belum punya ID provider. Hubungi admin.' };
+    let d = null;
+    try { d = await provider('cancel', { id: o.provider_order_id }); } catch (e) { d = null; }
+    if (!d || !d.status) return { status: false, error: (d && (d.error || d.message)) || 'Provider menolak pembatalan. Pesanan mungkin sudah diproses.' };
+  }
+  // atomik: hanya satu permintaan yang bisa menandai batal, jadi saldo tidak dikembalikan dua kali
+  const hit = await rest('orders', '?select=id&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId) + '&status=eq.' + enc(o.status), { method: 'PATCH', prefer: 'return=representation', body: { status: 'Canceled' } });
+  if (!hit || !hit.length) return { status: false, error: 'Status pesanan sudah berubah. Muat ulang halaman.' };
+  const left = await rpc('adjust_balance', { p_user: req.buyerId, p_delta: num(o.price) });
+  return { status: true, balance: left, message: 'Pesanan dibatalkan dan saldo dikembalikan.' };
+}));
 app.post('/api/buyer/refill', buyerOnly, run(async (req) => {
   if (limited(req, 'refill')) return { status: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' };
   const id = parseInt((req.body || {}).id, 10);
