@@ -54,7 +54,7 @@ module.exports = function mountPush(app, d) {
   function vapidHeader(v, endpoint) {
     const u = new URL(endpoint);
     const head = b64u(JSON.stringify({ typ: 'JWT', alg: 'ES256' }));
-    const claims = b64u(JSON.stringify({ aud: u.origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: process.env.VAPID_SUBJECT || 'mailto:admin@alzzpedia.local' }));
+    const claims = b64u(JSON.stringify({ aud: u.origin, exp: Math.floor(Date.now() / 1000) + 12 * 3600, sub: process.env.VAPID_SUBJECT || 'mailto:admin@example.com' }));
     const data = head + '.' + claims;
     const sig = crypto.sign('sha256', Buffer.from(data), { key: v.key, dsaEncoding: 'ieee-p1363' }); // R||S 64 byte
     return 'vapid t=' + data + '.' + b64u(sig) + ', k=' + v.public;
@@ -87,8 +87,10 @@ module.exports = function mountPush(app, d) {
     }
     if (body) { headers['Content-Encoding'] = 'aes128gcm'; headers['Content-Type'] = 'application/octet-stream'; }
     // tanpa body = push kosong: sw.js lalu mengambil isi dari /api/admin/push/events
-    const r = await fetch(sub.endpoint, { method: 'POST', headers, body: body || undefined, signal: AbortSignal.timeout(6000) });
-    return r.status;
+    const go = async () => (await fetch(sub.endpoint, { method: 'POST', headers, body: body || undefined, signal: AbortSignal.timeout(6000) })).status;
+    let code = await go();
+    if (code === 429 || code >= 500) { await new Promise((r) => setTimeout(r, 700)); code = await go(); }
+    return code;
   }
 
   /* ---------- Catat kejadian + kirim ke semua HP admin ---------- */
@@ -101,17 +103,20 @@ module.exports = function mountPush(app, d) {
       rest('push_events', '?created_at=lt.' + enc(iso), { method: 'DELETE' }).catch(() => {});
       const [ev] = (await rest('push_events', '?select=id', { method: 'POST', prefer: 'return=representation', body: { type, title: t, body: b, url } })) || [];
       const subs = await rest('push_subs', '?select=id,endpoint,p256dh,auth');
-      if (!subs || !subs.length) return;
+      if (!subs || !subs.length) return { total: 0, sent: 0, codes: [] };
       const v = await getVapid();
       const payload = { id: ev ? ev.id : Date.now(), type, title: t, body: b, url };
+      const codes = [];
       await Promise.allSettled(subs.map(async (s) => {
         try {
           const code = await sendOne(v, s, payload);
+          codes.push(code);
           if (code === 404 || code === 410) await rest('push_subs', '?id=eq.' + s.id, { method: 'DELETE' });
           else if (code >= 400) console.error('Push ditolak', code);
-        } catch (e) { console.error('Push gagal:', e.message); }
+        } catch (e) { codes.push('timeout'); console.error('Push gagal:', e.message); }
       }));
-    } catch (e) { console.error('Notifikasi gagal:', e.message); }
+      return { total: subs.length, sent: codes.filter((c) => c >= 200 && c < 300).length, codes };
+    } catch (e) { console.error('Notifikasi gagal:', e.message); return { total: 0, sent: 0, codes: ['error'] }; }
   }
 
   /* ---------- API (hanya admin yang login) ---------- */
@@ -143,8 +148,8 @@ module.exports = function mountPush(app, d) {
 
   // Kirim notifikasi percobaan ke semua HP admin (tombol "Tes notifikasi")
   app.post('/api/admin/push/test', adminOnly, run(async () => {
-    await notify('test', '✅ Notifikasi aktif', 'Notifikasi Alzz Pedia berhasil sampai ke HP ini.', '/admin');
-    return { ok: true };
+    const r = await notify('test', 'Notifikasi aktif', 'Notifikasi Alzz Pedia berhasil sampai ke HP ini.', '/admin');
+    return { ok: true, ...r };
   }));
 
   app.get('/api/admin/push/events', adminOnly, run(async (req) => {

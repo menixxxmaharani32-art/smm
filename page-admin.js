@@ -321,7 +321,7 @@ async function togglePush(){const m=$('#pn_msg');m.textContent='';
   else{const p=await Notification.requestPermission();if(p!=='granted'){say(m,false,'Izin notifikasi tidak diberikan.');paintPush();return}await pushSub();pushOn=true;say(m,true,'Notifikasi aktif. Coba tombol Tes notifikasi.')}}
  catch(e){say(m,false,e.message||'Gagal mengaktifkan notifikasi.');alert(e.message||'Gagal mengaktifkan notifikasi.')}paintPush()}
 $('#pn_on').onclick=togglePush;$('#bell').onclick=togglePush;
-$('#pn_test').onclick=async()=>{const m=$('#pn_msg');try{const d=await post('/api/admin/push/test');say(m,d.ok,d.ok?'Tes dikirim. Notifikasi akan muncul sebentar lagi.':errOf(d))}catch{}};
+$('#pn_test').onclick=async()=>{const m=$('#pn_msg');try{const d=await post('/api/admin/push/test');say(m,d.ok&&d.total>0&&d.sent===d.total,!d.ok?errOf(d):d.total===0?'Belum ada HP terdaftar. Ketuk Notifikasi dulu.':d.sent===d.total?'Server berhasil mengirim ke '+d.sent+' perangkat. Kalau belum muncul, masalahnya di pengaturan HP (baterai/izin).':'Server gagal mengirim ('+d.sent+'/'+d.total+', kode '+d.codes.join(',')+'). Matikan lalu aktifkan lagi notifikasinya.')}catch{}};
 async function initPush(){if(!PUSH_OK){paintPush();return}
  try{const reg=await navigator.serviceWorker.getRegistration('/sw.js');const sub=reg&&await reg.pushManager.getSubscription();
   pushOn=!!sub&&Notification.permission==='granted';
