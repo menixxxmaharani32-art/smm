@@ -91,7 +91,7 @@ module.exports = {
   script: `
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
-const rp100=n=>'Rp '+(Math.round((Number(n)||0)*10)/100).toLocaleString('id-ID',{maximumFractionDigits:2}); // harga per 100
+const rp100=n=>'Rp '+Math.ceil((Number(n)||0)/10).toLocaleString('id-ID',{maximumFractionDigits:0}); // harga per 100, tanpa koma
 async function api(p,o){const r=await fetch(p,o);if(r.status===401){location.href='/login';throw new Error('401')}return r.json()}
 const post=(p,b)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
 const errOf=d=>typeof d.data==='string'?d.data:(d.error||'Terjadi kesalahan.');

@@ -71,7 +71,7 @@ module.exports = {
   script: `
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
-const rp100=n=>'Rp '+(Math.round((Number(n)||0)*10)/100).toLocaleString('id-ID',{maximumFractionDigits:2}); // harga per 100
+const rp100=n=>'Rp '+Math.ceil((Number(n)||0)/10).toLocaleString('id-ID',{maximumFractionDigits:0}); // harga per 100, tanpa koma
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
 const note=(el,k,t)=>{el.style.color=k==='ok'?'var(--ok)':k==='info'?'var(--muted)':'';el.textContent=t};
 let SV=[],sel=null,tot=0,me=null,loaded=false,mode='in';
