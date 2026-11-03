@@ -30,7 +30,7 @@ module.exports = {
 </div></div>
 
 <div data-p="ord" class="hide"><section class="box"><h2>Riwayat pesanan pembeli</h2>
-<p class="muted" style="margin-top:6px">Status pesanan bisa diubah manual. <b>Menunggu</b> khusus untuk pesanan yang tertahan karena saldo Sprint Pedia kurang, diproses otomatis setelah saldo terisi.</p>
+<p class="muted" style="margin-top:6px">Status pesanan hanya dibaca dari Sprint Pedia. <b>Menunggu</b> berarti pesanan tertahan karena saldo Sprint Pedia kurang, diproses otomatis setelah saldo terisi.</p>
 <input id="o_q" placeholder="Cari username pembeli" autocapitalize="none" style="margin-top:12px">
 <div class="amts" id="o_f"><button type="button" class="chip" data-s="all" aria-pressed="true">Semua</button><button type="button" class="chip" data-s="queued" aria-pressed="false">Menunggu</button><button type="button" class="chip" data-s="pending" aria-pressed="false">Pending</button><button type="button" class="chip" data-s="processing" aria-pressed="false">Diproses</button><button type="button" class="chip" data-s="success" aria-pressed="false">Sukses</button><button type="button" class="chip" data-s="partial" aria-pressed="false">Sebagian</button><button type="button" class="chip" data-s="error" aria-pressed="false">Error</button></div>
 <div id="o_list" style="margin-top:8px"></div></section></div>
@@ -49,13 +49,13 @@ module.exports = {
 <div id="ulist" style="margin-top:8px"></div></section></div>
 
 <div data-p="rec" class="hide">
-<section class="box"><h2>Layanan rekomendasi</h2>
+<section class="box"><h2>Layanan rekomendasi<span class="badge" id="reccnt"></span></h2>
 <p class="muted" style="margin-top:6px">Tampil paling atas di halaman pembeli. Maksimal 10 layanan.</p>
 <div id="reclist" style="margin-top:8px"></div><div class="err" id="recmsg" role="status"></div></section>
 <section class="box"><h2>Tambah layanan</h2>
 <p class="muted" style="margin-top:6px">Tambah lewat ID layanan (boleh banyak ID, pisahkan dengan koma).</p>
 <div class="row" style="margin-top:8px"><input id="rec_id" placeholder="Contoh: 1234 atau 1234, 5678" autocomplete="off" autocapitalize="none" spellcheck="false"><button type="button" id="rec_add">Tambah</button></div>
-<p class="muted" style="margin-top:14px">Atau cari lewat nama:</p>
+<p class="muted" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">Atau cari lewat nama:</p>
 <input id="rec_q" placeholder="Cari nama layanan atau kategori" style="margin-top:8px" autocomplete="off">
 <div id="recres" style="margin-top:8px"></div></section></div>
 
@@ -102,7 +102,7 @@ window.addEventListener('pageshow',e=>{if(e.persisted)location.reload()});
 
 let ofil='all',otm=null;
 const OG={success:['Sukses','approved'],queued:['Menunggu',''],pending:['Pending',''],processing:['Diproses',''],partial:['Sebagian',''],error:['Error','rejected']};
-const OPT=[['pending','Pending'],['processing','Diproses'],['success','Sukses'],['partial','Sebagian'],['error','Error']];
+
 async function loadOrd(){const box=$('#o_list');
  try{const d=await api('/api/admin/orders?status='+ofil+'&q='+encodeURIComponent($('#o_q').value.trim()));box.textContent='';
   if(!d.status){box.textContent=errOf(d);return}
@@ -115,16 +115,6 @@ async function loadOrd(){const box=$('#o_list');
    const v=document.createElement('p');v.className='ov';v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
    r.append(h,m,t,v);
    if(o.grp==='queued'){const q=document.createElement('p');q.className='muted';q.textContent='Menunggu saldo Sprint Pedia, diproses otomatis setelah saldo terisi.';r.append(q)}
-   else{const w=document.createElement('div');w.className='row';w.style.marginTop='8px';
-    const sel=document.createElement('select');sel.setAttribute('aria-label','Ubah status pesanan');
-    OPT.forEach(x=>{const op=document.createElement('option');op.value=x[0];op.textContent=x[1];sel.append(op)});
-    if(o.manual){const op=document.createElement('option');op.value='auto';op.textContent='Otomatis (ikut Sprint Pedia)';sel.append(op)}
-    sel.value=OPT.some(x=>x[0]===o.grp)?o.grp:'pending';
-    const sv=document.createElement('button');sv.type='button';sv.className='ghost';sv.textContent='Simpan status';
-    sv.onclick=async()=>{sv.disabled=true;try{const d=await post('/api/admin/orders/status',{id:o.id,status:sel.value});
-      if(d.status){if(d.warn)alert(d.warn);loadOrd();loadRevenue()}else{alert(errOf(d));sv.disabled=false}}catch{sv.disabled=false}};
-    w.append(sel,sv);r.append(w);
-    if(o.manual){const mm=document.createElement('p');mm.className='muted';mm.textContent='Status diatur manual oleh admin.';r.append(mm)}}
    box.append(r)})}catch{}}
 document.querySelectorAll('#o_f .chip').forEach(b=>b.onclick=()=>{ofil=b.dataset.s;document.querySelectorAll('#o_f .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));loadOrd()});
 $('#o_q').addEventListener('input',()=>{clearTimeout(otm);otm=setTimeout(loadOrd,350)});
@@ -245,14 +235,17 @@ $('#tform').onsubmit=async e=>{e.preventDefault();
 
 /* ---------- Rekomendasi ---------- */
 let REC=[];
-function drawRec(){const box=$('#reclist');box.textContent='';
+function drawRec(){const box=$('#reclist');box.textContent='';$('#reccnt').textContent=REC.length+'/10';
  if(!REC.length){box.textContent='Belum ada layanan rekomendasi.';return}
- REC.forEach((x,i)=>{const row=document.createElement('div');row.className='ord';
+ REC.forEach((x,i)=>{const row=document.createElement('div');row.className='rrow';
+  const no=document.createElement('span');no.className='rno';no.textContent=i+1;
+  const tx=document.createElement('div');tx.className='rtx';
   const n=document.createElement('b');n.textContent=x.name;
-  const m=document.createElement('p');m.className='muted';m.textContent=x.category+' | '+rp100(x.price)+' / 100';
-  const bar=document.createElement('div');bar.className='row';
+  const m=document.createElement('small');m.textContent='ID '+x.id+' | '+x.category+' | '+rp100(x.price)+' / 100';
+  tx.append(n,m);
+  const bar=document.createElement('div');bar.className='rbar';
   bar.append(btn('Naik','ghost',()=>moveRec(i,-1)),btn('Turun','ghost',()=>moveRec(i,1)),btn('Hapus','ghost',()=>{REC.splice(i,1);saveRec()}));
-  row.append(n,m,bar);box.append(row)})}
+  row.append(no,tx,bar);box.append(row)})}
 function moveRec(i,d){const j=i+d;if(j<0||j>=REC.length)return;const t=REC[i];REC[i]=REC[j];REC[j]=t;saveRec()}
 async function loadRec(){try{const d=await api('/api/admin/recommended');if(d.status){REC=d.data;drawRec()}else $('#reclist').textContent=errOf(d)}catch{}}
 async function saveRec(){try{const d=await post('/api/admin/recommended',{ids:REC.map(x=>x.id)});

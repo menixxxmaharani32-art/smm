@@ -26,7 +26,8 @@ module.exports = {
 <nav class="tabs" id="mtabs">
 <button class="tab" type="button" data-t="sv" aria-selected="true">Layanan</button>
 <button class="tab" type="button" data-t="rw" aria-selected="false">Riwayat</button>
-<button class="tab" type="button" data-t="dp" aria-selected="false">Deposit</button></nav>
+<button class="tab" type="button" data-t="dp" aria-selected="false">Deposit</button>
+<button class="tab" type="button" data-t="pf" aria-selected="false">Profil</button></nav>
 
 <div data-p="sv">
 <section class="box hide" id="recbox"><h2>Rekomendasi <span class="badge">Pilihan admin</span></h2><div id="reclist"></div></section>
@@ -44,7 +45,28 @@ module.exports = {
 </div>
 
 <div data-p="rw" class="hide">
-<section class="box" id="ords"><div class="top"><h2>Pesanan saya</h2><button class="ghost" id="orf" type="button">Segarkan</button></div><div id="olist"></div></section>
+<section class="box" id="ords">
+<div class="seg" id="rseg"><button type="button" class="on" data-v="o">Riwayat Pesanan</button><button type="button" data-v="r">Riwayat Refill</button></div>
+<div id="ov"><div class="top"><h2>Pesanan saya</h2><button class="ghost" id="orf" type="button">Segarkan</button></div><div id="olist"></div></div>
+<div id="rv" class="hide"><div class="top"><div><h2>Riwayat Refill</h2><p class="muted" id="rtotal"></p></div><button class="ghost" id="rrf" type="button">Segarkan</button></div>
+<input id="rq" placeholder="Cari ID atau layanan" autocomplete="off" style="margin-top:10px">
+<div class="selbar"><span id="rsel">0 ID</span><button type="button" class="ghost" id="rcopy" disabled>Salin ID Pesanan</button></div>
+<div id="rlist"></div></div></section>
+</div>
+
+<div data-p="pf" class="hide">
+<section class="box"><h2>Akun saya</h2>
+<label for="pf_user_v" style="margin-top:10px">Username</label>
+<input id="pf_user_v" readonly style="opacity:.85"><p class="muted" style="margin-top:6px">Username tidak bisa diubah.</p></section>
+<section class="box"><h2>Ubah password</h2>
+<label for="pf_old" style="margin-top:10px">Password lama</label>
+<input id="pf_old" type="password" autocomplete="current-password">
+<label for="pf_new" style="margin-top:10px">Password baru (minimal 6 karakter)</label>
+<input id="pf_new" type="password" autocomplete="new-password">
+<label for="pf_new2" style="margin-top:10px">Ulangi password baru</label>
+<input id="pf_new2" type="password" autocomplete="new-password">
+<button type="button" id="pf_save">Simpan password</button>
+<div class="err" id="pf_msg" role="status"></div></section>
 </div>
 
 <div data-p="dp" class="hide">
@@ -71,6 +93,8 @@ module.exports = {
   script: `
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
+const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
+const fdt=v=>{const d=new Date(v);return isNaN(d)?['','']:d.toLocaleString('sv-SE').split(' ')};
 const rp100=n=>'Rp '+Math.ceil((Number(n)||0)/10).toLocaleString('id-ID',{maximumFractionDigits:0}); // harga per 100, tanpa koma
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
 const note=(el,k,t)=>{el.style.color=k==='ok'?'var(--ok)':k==='info'?'var(--muted)':'';el.textContent=t};
@@ -108,7 +132,7 @@ $('#bout').onclick=async()=>{try{await post('/api/buyer/logout')}catch{}location
 function tab(t){document.querySelectorAll('#app [data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));
  document.querySelectorAll('#mtabs .tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));
  if(t==='dp'){dview('list');loadDeposits();refreshBal()}
- if(t==='rw')loadOrders()}
+ if(t==='rw')loadOrders();if(t==='pf')$('#pf_user_v').value=$('#uname').textContent}
 document.querySelectorAll('#mtabs .tab').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 async function refreshBal(){try{const r=await fetch('/api/buyer/me');const d=await r.json();if(d.status)$('#ubal').textContent='Saldo '+rp(d.balance)}catch{}}
 function img2url(file,max,q){return new Promise((ok,no)=>{const u=URL.createObjectURL(file);const im=new Image();
@@ -284,13 +308,12 @@ async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)re
  if(!d.data||!d.data.length){box.textContent='Belum ada pesanan.';return}
  const todo=[];
  d.data.forEach(o=>{const row=document.createElement('div');row.className='ord';
-  const hd=document.createElement('div');hd.className='ohead';
-  const nm=document.createElement('b');nm.textContent=o.service_name||'Pesanan #'+o.id;
-  const bg=document.createElement('span');const fin=setBadge(bg,o.status);hd.append(nm,bg);
-  const g=document.createElement('p');g.className='pre muted';g.style.marginTop='6px';g.textContent=o.target;
-  const v=document.createElement('p');v.style.cssText='font-weight:700;margin-top:6px';
-  v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
-  row.append(hd,g,v);
+  row.className='ord rc';const bg=el('span');const fin=setBadge(bg,o.status);
+  const tp=el('div','rc-top');tp.append(el('span','rc-chip','#'+o.id),bg);
+  const dt=fdt(o.created_at),mt=el('div','rc-meta');
+  mt.append(el('p','rc-lbl',dt[0]?'TANGGAL/WAKTU':'TOTAL'),el('b','',dt[0]||rp(o.price)),el('small','',dt[0]?dt[1]:''));
+  row.append(tp,el('p','rc-name',o.service_name||'Pesanan #'+o.id),el('p','pre muted',o.target),el('p','rc-info',(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+'  |  ':'')+rp(o.price)));
+  if(dt[0])row.append(mt);
   if(!fin){const c=document.createElement('button');c.type='button';c.className='ghost';c.textContent='Cek status';
    c.onclick=()=>checkOrder(o.id,bg,c,row);row.append(c);todo.push([o.id,bg,c,row])}
   else if(['ok','part'].indexOf(stInfo(o.status)[1])>-1)addRefillBtn(row,o.id)
@@ -298,6 +321,36 @@ async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)re
  for(const t of todo.slice(0,10)){if(mine!==oseq)break;await checkOrder(t[0],t[1],t[2],t[3])}}
 $('#orf').onclick=loadOrders;
 $('#goords').onclick=()=>tab('rw');
+/* ---------- Profil: ganti password ---------- */
+$('#pf_save').onclick=async()=>{const m=$('#pf_msg'),o=$('#pf_old').value,n=$('#pf_new').value,c=$('#pf_new2').value;
+ const say=(ok,t)=>{m.style.color=ok?'var(--ok)':'var(--danger)';m.textContent=t};
+ if(!o||!n||!c){say(false,'Isi semua kolom.');return}
+ if(n!==c){say(false,'Konfirmasi password tidak sama.');return}
+ const b=$('#pf_save');b.disabled=true;
+ try{const d=await post('/api/buyer/password',{old:o,next:n});
+  if(d.status){say(true,'Password berhasil diubah.');['#pf_old','#pf_new','#pf_new2'].forEach(x=>{$(x).value=''})}
+  else say(false,d.error||'Gagal mengubah password.')}catch{say(false,'Koneksi bermasalah, coba lagi.')}b.disabled=false};
+
+/* ---------- Riwayat Refill ---------- */
+let RF=[];
+function updSel(){const n=document.querySelectorAll('.rc-cb:checked').length;$('#rsel').textContent=n+' ID';$('#rcopy').disabled=!n}
+function drawRefills(){const q=$('#rq').value.trim().toLowerCase(),box=$('#rlist');box.textContent='';$('#rtotal').textContent='Total data: '+RF.length;
+ const list=RF.filter(x=>!q||('#'+x.id+' '+x.order_id+' '+x.refill_id+' '+x.service_name).toLowerCase().indexOf(q)>-1);
+ if(!list.length){box.append(el('p','muted',RF.length?'Tidak ada hasil.':'Belum ada refill.'));updSel();return}
+ list.forEach(x=>{const c=el('div','rc'),tp=el('div','rc-top'),cb=document.createElement('input');cb.type='checkbox';cb.className='rc-cb';cb.dataset.id=x.order_id;cb.onchange=updSel;
+  const bg=el('span');setBadge(bg,x.status);tp.append(cb,el('span','rc-chip','#'+(x.refill_id||x.id)),bg);
+  const dt=fdt(x.created_at),mt=el('div','rc-meta');mt.append(el('p','rc-lbl','TANGGAL/WAKTU'),el('b','',dt[0]),el('small','',dt[1]));
+  const sy=el('button','ghost','Cek status');sy.type='button';
+  sy.onclick=async()=>{sy.disabled=true;try{const d=await post('/api/buyer/refill-status',{id:x.id});if(d.status){x.status=d.state;setBadge(bg,d.state)}}catch{}sy.disabled=false};
+  c.append(tp,el('p','rc-lbl','ID PESANAN'),el('span','rc-chip','#'+x.order_id),el('p','rc-name',x.service_name||('Pesanan #'+x.order_id)));
+  if(dt[0])c.append(mt);c.append(sy);box.append(c)});updSel()}
+async function loadRefills(){try{const r=await fetch('/api/buyer/refills');if(!r.ok)return;const d=await r.json();RF=d.data||[];drawRefills()}catch{}}
+document.querySelectorAll('#rseg button').forEach(b=>b.onclick=()=>{document.querySelectorAll('#rseg button').forEach(x=>x.classList.toggle('on',x===b));
+ $('#ov').classList.toggle('hide',b.dataset.v!=='o');$('#rv').classList.toggle('hide',b.dataset.v!=='r');if(b.dataset.v==='r')loadRefills();else loadOrders()});
+$('#rrf').onclick=loadRefills;$('#rq').oninput=drawRefills;
+$('#rcopy').onclick=async()=>{const ids=[...document.querySelectorAll('.rc-cb:checked')].map(e=>e.dataset.id).join('\\n');
+ try{await navigator.clipboard.writeText(ids);$('#rcopy').textContent='Tersalin'}catch{$('#rcopy').textContent='Gagal menyalin'}setTimeout(()=>{$('#rcopy').textContent='Salin ID Pesanan'},1500)};
+
 
 fetch('/api/wa').then(r=>r.json()).then(d=>{if(d&&d.status&&d.wa){$('#help_a').href='https://wa.me/'+d.wa;$('#help').classList.remove('hide')}}).catch(()=>{});
 setMode(location.hash==='#daftar'?'up':'in');

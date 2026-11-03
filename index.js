@@ -223,27 +223,6 @@ app.get('/api/admin/orders', adminOnly, run(async (req) => {
   if (ids.length) (await rest('users', '?select=id,username&id=in.(' + ids.map(enc).join(',') + ')')).forEach((u) => { names[u.id] = u.username; });
   return { status: true, data: rows.map((o) => ({ id: o.id, username: o.user_id ? (names[o.user_id] || '(akun dihapus)') : 'Admin', service_name: o.service_name, target: o.target, quantity: o.quantity, price: o.price, grp: o.grp, manual: !!o.manual_status, created_at: o.created_at || null })) };
 }));
-// Ubah status pesanan secara manual (admin). "Menunggu" (queued) khusus saldo Sprint Pedia kurang, tidak bisa dipilih.
-const ADMIN_ST = { pending: 'pending', processing: 'processing', success: 'success', partial: 'partial', error: 'error' };
-app.post('/api/admin/orders/status', adminOnly, run(async (req, res) => {
-  const id = parseInt((req.body || {}).id, 10);
-  const want = String((req.body || {}).status || '');
-  if (!id) { res.status(400); return { status: false, error: 'Pesanan tidak valid.' }; }
-  if (want !== 'auto' && !ADMIN_ST[want]) { res.status(400); return { status: false, error: 'Status tidak valid.' }; }
-  const [o] = await rest('orders', '?select=id,status&id=eq.' + id);
-  if (!o) return { status: false, error: 'Pesanan tidak ditemukan.' };
-  if (stGroup(o.status) === 'queued') return { status: false, error: 'Pesanan ini Menunggu saldo Sprint Pedia. Diproses otomatis setelah saldo terisi.' };
-  if (want === 'auto') { // kembali mengikuti status dari Sprint Pedia
-    try { await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { manual_status: false } }); } catch (e) { /* kolom belum ada: tidak ada yang perlu dilepas */ }
-    return { status: true, mode: 'auto' };
-  }
-  try { await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { status: ADMIN_ST[want], manual_status: true } }); }
-  catch (e) { // kolom manual_status belum dibuat: tetap simpan status
-    await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { status: ADMIN_ST[want] } });
-    return { status: true, mode: 'manual', warn: 'Jalankan orders_status.sql agar status ini tidak ditimpa otomatis oleh Sprint Pedia.' };
-  }
-  return { status: true, mode: 'manual' };
-}));
 app.get('/api/admin/users', adminOnly, run(async (req) => {
   const q = String(req.query.q || '').toLowerCase().replace(/[^a-z0-9_]/g, '');
   const rows = await rest('users', '?select=username,balance,created_at&order=created_at.desc&limit=100' + (q ? '&username=ilike.*' + q + '*' : ''));
@@ -312,12 +291,26 @@ app.get('/api/buyer/me', buyerOnly, run(async (req) => {
   const [u] = await rest('users', '?select=username,balance&id=eq.' + enc(req.buyerId));
   return u ? { status: true, username: u.username, balance: num(u.balance) } : { status: false, error: 'Akun tidak ditemukan.' };
 }));
+// Pembeli mengganti password sendiri (wajib mengisi password lama)
+app.post('/api/buyer/password', buyerOnly, run(async (req) => {
+  if (limited(req, 'pw')) return { status: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' };
+  const b = req.body || {}, oldp = String(b.old || ''), np = String(b.next || '');
+  if (np.length < 6 || np.length > 72) return { status: false, error: 'Password baru minimal 6 karakter.' };
+  if (np === oldp) return { status: false, error: 'Password baru harus berbeda dari yang lama.' };
+  const [u] = await rest('users', '?select=password_hash&id=eq.' + enc(req.buyerId));
+  if (!u || !checkPw(oldp, u.password_hash)) return { status: false, error: 'Password lama salah.' };
+  await rest('users', '?id=eq.' + enc(req.buyerId), { method: 'PATCH', body: { password_hash: hashPw(np) } });
+  return { status: true };
+}));
 app.get('/api/buyer/orders', buyerOnly, run(async (req) => {
   await maybeQueue();
   const tail = '&order=id.desc&limit=20&user_id=eq.' + enc(req.buyerId);
   let data;
-  try { data = await rest('orders', '?select=id,service_name,target,quantity,price,status' + tail); }
-  catch (e) { data = await rest('orders', '?select=id,target,price' + tail); } // cadangan jika kolom belum ada
+  try { data = await rest('orders', '?select=id,service_name,target,quantity,price,status,created_at' + tail); }
+  catch (e) {
+    try { data = await rest('orders', '?select=id,service_name,target,quantity,price,status' + tail); }
+    catch (e2) { data = await rest('orders', '?select=id,target,price' + tail); } // cadangan jika kolom belum ada
+  }
   return { status: true, data };
 }));
 
@@ -629,10 +622,41 @@ app.post('/api/buyer/refill', buyerOnly, run(async (req) => {
   if (!o.provider_order_id) return { status: false, error: 'Pesanan ini belum diproses, belum bisa refill.' };
   if (!['success', 'partial'].includes(stGroup(o.status))) return { status: false, error: 'Refill hanya bisa untuk pesanan yang sudah selesai (Sukses).' };
   const d = await provider('refill', { id: o.provider_order_id });
-  if (d && d.status) return { status: true, message: 'Permintaan refill sudah dikirim ke provider.' };
+  if (d && d.status) {
+    const x = d.data, rid = x && typeof x === 'object' ? (x.id_refill || x.refill || x.id || '') : (x || '');
+    try { await rest('refills', '', { method: 'POST', body: { user_id: req.buyerId, order_id: id, refill_id: String(rid || ''), status: 'Processing' } }); }
+    catch (e) { console.error('Catat refill gagal:', e.message); }
+    return { status: true, message: 'Permintaan refill sudah dikirim ke provider.' };
+  }
   console.error('Refill ditolak:', JSON.stringify(d));
   const why = d && (typeof d.data === 'string' ? d.data : (d.error || d.message));
   return { status: false, error: why ? 'Refill ditolak: ' + String(why).slice(0, 160) : 'Refill ditolak. Layanan ini mungkin tidak mendukung refill atau belum waktunya.' };
+}));
+
+// Riwayat refill milik pembeli (tabel refills; jalankan refills.sql sekali)
+app.get('/api/buyer/refills', buyerOnly, run(async (req) => {
+  let rows;
+  try { rows = await rest('refills', '?select=id,order_id,refill_id,status,created_at&order=id.desc&limit=50&user_id=eq.' + enc(req.buyerId)); }
+  catch (e) { return { status: true, data: [] }; }
+  const ids = [...new Set(rows.map((r) => r.order_id))].filter(Number.isInteger);
+  let os = [];
+  if (ids.length) { try { os = await rest('orders', '?select=id,service_name&id=in.(' + ids.join(',') + ')&user_id=eq.' + enc(req.buyerId)); } catch (e) { os = []; } }
+  const by = Object.fromEntries(os.map((o) => [o.id, o.service_name]));
+  return { status: true, data: rows.map((r) => ({ ...r, service_name: by[r.order_id] || '' })) };
+}));
+app.post('/api/buyer/refill-status', buyerOnly, run(async (req) => {
+  const id = parseInt((req.body || {}).id, 10);
+  if (!id) return { status: false, error: 'Data tidak valid.' };
+  const [r] = await rest('refills', '?select=id,refill_id,status&id=eq.' + id + '&user_id=eq.' + enc(req.buyerId));
+  if (!r) return { status: false, error: 'Data tidak ditemukan.' };
+  if (r.refill_id) {
+    try {
+      const d = await provider('refill_status', { id: r.refill_id });
+      const st = d && d.status && d.data && (d.data.status || (typeof d.data === 'string' ? d.data : ''));
+      if (st) { await rest('refills', '?id=eq.' + id, { method: 'PATCH', body: { status: String(st) } }); return { status: true, state: String(st) }; }
+    } catch (e) { /* biarkan status terakhir */ }
+  }
+  return { status: true, state: r.status };
 }));
 
 /* ================= Nomor WhatsApp bantuan ================= */
