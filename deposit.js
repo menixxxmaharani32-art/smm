@@ -52,7 +52,7 @@ module.exports = function mountDeposit(app, d) {
     if (rows && rows.length) {
       try { // notifikasi ke HP admin: deposit siap diperiksa
         const [u] = await rest('users', '?select=username&id=eq.' + enc(req.buyerId));
-        await notify('deposit', '💰 Deposit baru', ((u && u.username) || 'Pembeli') + ' mengajukan deposit Rp ' + Math.round(rows[0].amount).toLocaleString('id-ID') + ' (bukti sudah diunggah)', '/admin#dp');
+        await notify('deposit', 'Deposit baru', ((u && u.username) || 'Pembeli') + ' mengajukan deposit Rp ' + Math.round(rows[0].amount).toLocaleString('id-ID') + ' (bukti sudah diunggah)', '/admin#dp');
       } catch (e) { console.error('notif deposit:', e.message); }
     }
     return rows && rows.length ? { status: true } : { status: false, error: 'Deposit tidak ditemukan atau sudah diproses.' };

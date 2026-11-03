@@ -2,7 +2,7 @@
 module.exports = {
   title: 'Dasbor admin',
   body: `
-<div class="top"><h1>Dasbor admin</h1><div style="display:flex;gap:8px"><button class="ghost" id="bell" type="button" aria-label="Notifikasi HP">🔔</button><button class="ghost" id="logout" type="button">Keluar</button></div></div>
+<div class="top"><h1>Dasbor admin</h1><div style="display:flex;gap:8px"><button class="ghost" id="bell" type="button" aria-label="Notifikasi HP">Notifikasi</button><button class="ghost" id="logout" type="button">Keluar</button></div></div>
 <nav class="tabs">
 <button class="tab" type="button" data-t="home" aria-selected="true">Pendapatan</button>
 <button class="tab" type="button" data-t="ord" aria-selected="false">Pesanan</button>
@@ -91,6 +91,7 @@ module.exports = {
   script: `
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
+const rp100=n=>'Rp '+(Math.round((Number(n)||0)*10)/100).toLocaleString('id-ID',{maximumFractionDigits:2}); // harga per 100
 async function api(p,o){const r=await fetch(p,o);if(r.status===401){location.href='/login';throw new Error('401')}return r.json()}
 const post=(p,b)=>api(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})});
 const errOf=d=>typeof d.data==='string'?d.data:(d.error||'Terjadi kesalahan.');
@@ -248,7 +249,7 @@ function drawRec(){const box=$('#reclist');box.textContent='';
  if(!REC.length){box.textContent='Belum ada layanan rekomendasi.';return}
  REC.forEach((x,i)=>{const row=document.createElement('div');row.className='ord';
   const n=document.createElement('b');n.textContent=x.name;
-  const m=document.createElement('p');m.className='muted';m.textContent=x.category+' | '+rp(x.price)+' / 1000';
+  const m=document.createElement('p');m.className='muted';m.textContent=x.category+' | '+rp100(x.price)+' / 100';
   const bar=document.createElement('div');bar.className='row';
   bar.append(btn('Naik','ghost',()=>moveRec(i,-1)),btn('Turun','ghost',()=>moveRec(i,1)),btn('Hapus','ghost',()=>{REC.splice(i,1);saveRec()}));
   row.append(n,m,bar);box.append(row)})}
@@ -261,7 +262,7 @@ async function searchRec(){const q=$('#rec_q').value.trim();const box=$('#recres
   if(!d.status){box.textContent=errOf(d);return}
   if(!d.data.length){box.textContent='Layanan tidak ditemukan.';return}
   d.data.forEach(x=>{const has=REC.some(r=>r.id===x.id);
-   const it=item(x.name,(has?'Sudah ditambahkan | ':'')+x.category+' | '+rp(x.price)+' / 1000',()=>{
+   const it=item(x.name,(has?'Sudah ditambahkan | ':'')+x.category+' | '+rp100(x.price)+' / 100',()=>{
     if(has)return;if(REC.length>=10){say($('#recmsg'),false,'Maksimal 10 layanan rekomendasi.');return}
     REC.push(x);saveRec()});
    if(has)it.style.opacity='.55';box.append(it)})}catch{}}
@@ -301,10 +302,10 @@ const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notif
 let pushOn=false,lastEv=0;
 function b64Key(b){const p='='.repeat((4-b.length%4)%4),r=atob((b+p).replace(/-/g,'+').replace(/_/g,'/')),a=new Uint8Array(r.length);for(let i=0;i<r.length;i++)a[i]=r.charCodeAt(i);return a}
 function paintPush(){const st=$('#pn_st'),on=$('#pn_on'),ts=$('#pn_test'),bl=$('#bell');
- bl.textContent=pushOn?'🔔 On':'🔔';bl.classList.toggle('ghost',!pushOn);
+ bl.textContent=pushOn?'Notifikasi On':'Notifikasi';bl.classList.toggle('ghost',!pushOn);
  if(!PUSH_OK){st.textContent='Browser ini belum mendukung notifikasi.';on.classList.add('hide');return}
  if(Notification.permission==='denied'){st.textContent='Notifikasi diblokir. Izinkan lewat pengaturan situs di browser.';on.classList.add('hide');return}
- st.textContent=pushOn?'Aktif di perangkat ini ✓':'Belum aktif';
+ st.textContent=pushOn?'Aktif di perangkat ini':'Belum aktif';
  on.textContent=pushOn?'Matikan notifikasi':'Aktifkan notifikasi';ts.classList.toggle('hide',!pushOn)}
 async function pushSub(){const reg=await navigator.serviceWorker.register('/sw.js');await navigator.serviceWorker.ready;
  const k=await api('/api/admin/push/key');if(!k.key)throw new Error('Kunci notifikasi belum siap. Jalankan push.sql di Supabase.');
@@ -332,6 +333,9 @@ async function pollEvents(){try{const d=await api('/api/admin/push/events?since=
  if(ev.some(e=>e.type==='deposit'))loadDeposits();loadRevenue();
  if(!pushOn&&'Notification' in window&&Notification.permission==='granted')ev.forEach(e=>{try{new Notification(e.title,{body:e.body,tag:'alzz-'+e.id})}catch{}})}catch{}}
 initPush();pollEvents();setInterval(pollEvents,25000);
+// Bagian Pengaturan & Pembayaran bisa dilipat; hanya yang pertama terbuka agar tidak panjang
+document.querySelectorAll('[data-p="set"]>.box,[data-p="pay"]>.box').forEach((b,i)=>{const h=b.querySelector(':scope>h2');if(!h)return;b.classList.add('fold');if(i>0)b.classList.add('closed');h.onclick=()=>b.classList.toggle('closed')});
+
 if(['home','ord','dp','us','rec','pay','set'].includes(location.hash.slice(1)))tab(location.hash.slice(1));
 `,
 };

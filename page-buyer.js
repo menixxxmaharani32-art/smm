@@ -33,7 +33,7 @@ module.exports = {
 <section class="box"><label style="margin-top:0">Platform</label><div class="chips" id="plats"></div>
 <label for="cat">Kategori</label><select id="cat" disabled></select></section>
 
-<section class="box"><h2>Layanan</h2><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
+<section class="box"><div class="top"><h2>Layanan</h2><button class="ghost" id="goords" type="button">Cek Pesanan</button></div><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
 
 <form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p><div id="stats"></div>
 <label for="b_link">Link target</label><input id="b_link" inputmode="url" autocapitalize="none" placeholder="https://">
@@ -71,6 +71,7 @@ module.exports = {
   script: `
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
+const rp100=n=>'Rp '+(Math.round((Number(n)||0)*10)/100).toLocaleString('id-ID',{maximumFractionDigits:2}); // harga per 100
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
 const note=(el,k,t)=>{el.style.color=k==='ok'?'var(--ok)':k==='info'?'var(--muted)':'';el.textContent=t};
 let SV=[],sel=null,tot=0,me=null,loaded=false,mode='in';
@@ -190,13 +191,13 @@ function showPlats(){const cnt={};SV.forEach(x=>{const p=plat(x.category);cnt[p]
 function pickPlat(p){document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.textContent===p)));
  const cats=[...new Set(SV.filter(x=>plat(x.category)===p).map(x=>x.category))];
  const s=$('#cat');s.textContent='';cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.append(o)});s.disabled=false;showSvs()}
-function svcCard(x){const b=document.createElement('button');b.type='button';b.className='svc';b.setAttribute('aria-pressed','false');
-  const t=document.createElement('b');t.textContent=x.name;const m=document.createElement('span');m.className='meta';
-  const pr=document.createElement('span');pr.className='price';pr.textContent=rp(x.price)+' / 1000';
-  const mn=document.createElement('span');mn.className='tag';mn.textContent='Min '+x.min;
-  const mx=document.createElement('span');mx.className='tag';mx.textContent='Maks '+x.max;
-  m.append(pr,mn,mx);b.append(t,m);
-  b.onclick=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};return b}
+function svIco(x){const w=String(x.category||x.name||'?').trim().match(/[A-Za-z0-9]/);return w?w[0].toUpperCase():'#'}
+function svcCard(x){const b=document.createElement('div');b.className='svc';b.tabIndex=0;b.setAttribute('role','button');b.setAttribute('aria-pressed','false');
+  const mk=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
+  b.append(mk('span','sv-min','Min '+Number(x.min).toLocaleString('id-ID')),mk('span','sv-ico',svIco(x)),mk('b','',x.name),
+   mk('span','sv-chip','Maks '+Number(x.max).toLocaleString('id-ID')),mk('span','sv-price',rp100(x.price)+' / 100'),mk('span','sv-btn','Pesan Sekarang'));
+  const go=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};
+  b.onclick=go;b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};return b}
 function showRec(ids){const box=$('#reclist');box.textContent='';
  const list=ids.map(i=>SV.find(x=>x.id===i)).filter(Boolean);
  $('#recbox').classList.toggle('hide',!list.length);
@@ -296,8 +297,12 @@ async function loadOrders(){const r=await fetch('/api/buyer/orders');if(!r.ok)re
   box.append(row)});
  for(const t of todo.slice(0,10)){if(mine!==oseq)break;await checkOrder(t[0],t[1],t[2],t[3])}}
 $('#orf').onclick=loadOrders;
+$('#goords').onclick=()=>tab('rw');
 
 fetch('/api/wa').then(r=>r.json()).then(d=>{if(d&&d.status&&d.wa){$('#help_a').href='https://wa.me/'+d.wa;$('#help').classList.remove('hide')}}).catch(()=>{});
 setMode(location.hash==='#daftar'?'up':'in');
+// "Cara deposit" dilipat supaya tab Deposit tidak panjang (ketuk judulnya untuk membuka)
+document.querySelectorAll('[data-p="dp"]>section.box').forEach(b=>{const h=b.querySelector(':scope>h2');if(h&&h.textContent==='Cara deposit'){b.classList.add('fold','closed');h.onclick=()=>b.classList.toggle('closed')}});
+
 loadMe();`,
 };

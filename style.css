@@ -275,3 +275,64 @@ a.qris-dl{justify-self:center;width:auto;min-height:36px;padding:7px 18px;font-s
   .tab{padding:8px 10px;font-size:.78rem}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* =====================================================================
+   Perapian & responsif: lebih ringkas, minim scroll, menyesuaikan layar
+   ===================================================================== */
+html{font-size:clamp(13px,.5vw + 11.5px,15px);scroll-behavior:smooth}
+main{padding:14px 12px 84px}
+main.adm,main:has(.tabs){padding-bottom:84px}
+main:has(#app.hide),main:has(#auth:not(.hide)){padding-bottom:28px}
+h1{font-size:1.15rem}
+.brand{margin-bottom:8px}
+.box{margin-top:10px;padding:14px;border-radius:16px}
+input,textarea,select{min-height:40px;padding:8px 12px}
+button,a.btn{min-height:40px;margin-top:12px;padding:8px 16px}
+.row{margin-top:8px}
+.tabs{gap:2px;padding:6px 8px calc(6px + env(safe-area-inset-bottom))}
+.tab{min-height:38px;padding:6px 10px;font-size:.8rem}
+.orow{padding:9px 0}
+/* daftar panjang punya area gulir sendiri, halaman tidak jadi panjang */
+#o_list,#ulist,#rlist,#reclist,#dlist,#pe,#dn,#olist{max-height:min(55vh,460px);overflow-y:auto;overscroll-behavior:contain}
+#svs{max-height:min(50vh,420px)}
+/* bagian yang bisa dilipat (ketuk judulnya) */
+.fold>h2{display:flex;justify-content:space-between;align-items:center;gap:8px;cursor:pointer;user-select:none}
+.fold>h2::after{content:"▾";color:var(--muted);transition:transform .2s}
+.fold.closed>h2::after{transform:rotate(-90deg)}
+.fold.closed>:not(h2){display:none!important}
+/* layar lebar: kartu disusun 2 kolom */
+@media(min-width:820px){
+  main{--mw:880px}
+  main.wide{--mw:1080px}
+  [data-p]:not(.hide){display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}
+  [data-p]:not(.hide)>.box{margin-top:0}
+  [data-p]>.box:only-child,#recbox,#ords{grid-column:1/-1}
+  #svs,#o_list,#ulist,#rlist,#olist{max-height:min(62vh,560px)}
+}
+/* HP kecil */
+@media(max-width:380px){.box{padding:12px}.tab{padding:6px 8px;font-size:.76rem}h1{font-size:1.05rem}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
+
+/* =====================================================================
+   Gaya toko (kartu grid, tepi menyala) seperti halaman alzDev, tanpa banner
+   ===================================================================== */
+body{background:radial-gradient(900px 420px at 50% -120px,rgba(56,189,248,.16),transparent),linear-gradient(180deg,#050b1a,#0a1230) fixed}
+.box{background:linear-gradient(180deg,#0c1631,#091127);border:1px solid rgba(56,189,248,.35);box-shadow:0 0 18px rgba(56,189,248,.12),0 8px 22px rgba(0,0,0,.45)}
+.box>h2,.box>.top>h2{font-size:1.05rem;font-weight:800;letter-spacing:.02em;text-transform:uppercase;background:linear-gradient(90deg,#60a5fa,#a78bfa);-webkit-background-clip:text;background-clip:text;color:transparent}
+#who{border-color:rgba(56,189,248,.45);box-shadow:0 0 22px rgba(56,189,248,.16)}
+.top button.ghost{border-radius:12px;background:rgba(255,255,255,.04)}
+#svs,#reclist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:10px 0 0;padding:2px}
+.svc{position:relative;display:flex;flex-direction:column;align-items:center;gap:6px;margin:0;padding:10px 9px 9px;text-align:center;cursor:pointer;
+  background:linear-gradient(180deg,#0d1836,#091127);border:1px solid rgba(56,189,248,.28);border-radius:16px;box-shadow:0 6px 16px rgba(0,0,0,.5);transition:transform .2s,border-color .2s,box-shadow .2s}
+.svc:hover,.svc:focus-visible{transform:translateY(-3px);border-color:#38bdf8;box-shadow:0 10px 22px rgba(56,189,248,.28);outline:0}
+.svc:active{transform:scale(.96)}
+.svc[aria-pressed=true]{border-color:#38bdf8;box-shadow:0 0 0 1px #38bdf8,0 0 22px rgba(56,189,248,.35)}
+.svc .sv-ico{display:grid;place-items:center;width:100%;height:56px;border-radius:12px;font-size:1.6rem;font-weight:900;color:#38bdf8;background:radial-gradient(circle at 50% 30%,rgba(56,189,248,.25),rgba(0,0,0,.55));border:1px solid rgba(255,255,255,.08)}
+.svc .sv-min{position:absolute;top:14px;right:14px;z-index:1;padding:2px 6px;border-radius:6px;background:rgba(16,185,129,.92);color:#fff;font-size:.62rem;font-weight:800}
+.svc b{font-size:.78rem;font-weight:800;line-height:1.3;color:#fff;text-align:center;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:3.1em}
+.svc .sv-chip{width:100%;padding:2px 6px;border:1px solid rgba(56,189,248,.28);border-radius:7px;background:rgba(56,189,248,.12);color:#38bdf8;font-size:.68rem;font-weight:700}
+.svc .sv-price{font-size:.84rem;font-weight:900;color:#34d399}
+.svc .sv-btn{width:100%;padding:7px 4px;border-radius:9px;background:linear-gradient(135deg,#10b981,#059669);color:#fff;font-size:.75rem;font-weight:800}
+#svs{max-height:min(62vh,560px)}
+@media(min-width:520px){#svs,#reclist{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(min-width:820px){#svs,#reclist{grid-template-columns:repeat(4,minmax(0,1fr))}}

@@ -290,7 +290,7 @@ app.post('/api/buyer/register', run(async (req, res) => {
   if (password.length < 6 || password.length > 72) return { status: false, error: 'Password minimal 6 karakter.' };
   try {
     await rest('users', '', { method: 'POST', body: { username, password_hash: hashPw(password) } });
-    await notify('user', '👤 Pembeli baru', username + ' baru saja mendaftar.', '/admin#us');
+    await notify('user', 'Pembeli baru', username + ' baru saja mendaftar.', '/admin#us');
     return { status: true }; // tidak otomatis login: pembeli diminta masuk sendiri
   } catch (e) {
     if (e.status === 409) return { status: false, error: 'Username sudah dipakai.' };
@@ -329,11 +329,11 @@ async function notifyOrder(uid, serviceName, qty, total, queued, info) {
     const rpf = (n) => 'Rp ' + Math.round(n).toLocaleString('id-ID');
     if (queued) { // saldo Sprint Pedia belum cukup: pesanan ditahan sampai admin top up
       const i = info || {};
-      await notify('order', '⚠️ Saldo Sprint Pedia kurang',
+      await notify('order', 'Saldo Sprint Pedia kurang',
         who + ' pesan ' + serviceName + ' x' + qty + ' (' + rpf(total) + '). Pesanan ditahan.' +
         (i.cost > 0 ? ' Modal ' + rpf(i.cost) + '.' : '') + (i.bal != null ? ' Saldo Sprint Pedia ' + rpf(i.bal) + '.' : '') + ' Top up agar terkirim.', '/admin#ord');
     } else {
-      await notify('order', '🛒 Pesanan baru', who + ' memesan ' + serviceName + ' x' + qty + ' (' + rpf(total) + ')', '/admin#ord');
+      await notify('order', 'Pesanan baru', who + ' memesan ' + serviceName + ' x' + qty + ' (' + rpf(total) + ')', '/admin#ord');
     }
   } catch (e) { console.error('notifyOrder:', e.message); }
 }
