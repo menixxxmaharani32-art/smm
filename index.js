@@ -304,6 +304,8 @@ app.post('/api/buyer/password', buyerOnly, run(async (req) => {
 }));
 app.get('/api/buyer/orders', buyerOnly, run(async (req) => {
   await maybeQueue();
+  if (Date.now() - lastSync > 60000) { lastSync = Date.now(); await syncOrders(8).catch(() => {}); } // maksimal 1x per menit
+  await maybeQueue();
   const tail = '&order=id.desc&limit=20&user_id=eq.' + enc(req.buyerId);
   let data;
   try { data = await rest('orders', '?select=id,service_name,target,quantity,price,status,created_at' + tail); }
@@ -485,7 +487,6 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
   return { status: true, total: Math.round(total), today: Math.round(today), month: Math.round(month), orders: count, has_date: hasDate, daily, now: dayKey };
 }));
 
-// Statistik pesanan per layanan (dihitung dari pesanan di web ini)
 const stGroup = (s) => {
   const t = String(s || '').toLowerCase();
   if (t === 'queued' || t === 'sending') return 'queued'; // "Menunggu": ditahan karena saldo Sprint Pedia kurang
@@ -577,40 +578,6 @@ const maybeQueue = async () => { // dipicu aktivitas pembeli, maksimal 1x per me
   lastQueue = Date.now();
   await processQueue(5).catch(() => {});
 };
-
-async function tally(filter) {
-  const counts = { pending: 0, processing: 0, success: 0, partial: 0, error: 0 };
-  let total = 0, qsum = 0, qn = 0;
-  const last = [];
-  const tries = ['id,status,quantity,created_at', 'id,status,quantity', 'id,status', 'id']; // jika ada kolom yang belum ada, pakai yang tersedia
-  let ti = 0;
-  for (let off = 0; off < 10000; off += 1000) {
-    let part;
-    try { part = await rest('orders', '?select=' + tries[ti] + '&order=id.desc&limit=1000&offset=' + off + filter); }
-    catch (e) {
-      if (off === 0 && ti < tries.length - 1) { ti++; off -= 1000; continue; }
-      throw e;
-    }
-    part.forEach((o) => {
-      const g = stGroup(o.status) === 'queued' ? 'pending' : stGroup(o.status);
-      counts[g]++; total++;
-      const q = num(o.quantity);
-      if (q > 0) { qsum += q; qn++; }
-      if (last.length < 3) last.push({ qty: q || null, st: g, at: o.created_at || null });
-    });
-    if (part.length < 1000) break;
-  }
-  return { counts, total, avg: qn ? Math.round(qsum / qn) : 0, last };
-}
-app.get('/api/buyer/stats/:id', buyerOnly, run(async (req) => {
-  const id = String(req.params.id || '');
-  await maybeQueue();
-  if (Date.now() - lastSync > 60000) { lastSync = Date.now(); await syncOrders(8).catch(() => {}); } // maksimal 1x per menit
-  try {
-    const r = await tally('&service_id=eq.' + enc(id));
-    return { status: true, total: r.total, counts: r.counts, avg: r.avg, last: r.last };
-  } catch (e) { console.error('stats:', e.message); return { status: false, error: 'Statistik gagal dimuat: ' + e.message.slice(0, 120) }; }
-}));
 
 // Refill (garansi) lewat Sprint Pedia
 // Batalkan pesanan (Cancel/Batalkan di API Sprint Pedia). Saldo dikembalikan hanya jika pembatalan berhasil.

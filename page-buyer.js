@@ -37,7 +37,7 @@ module.exports = {
 
 <section class="box"><div class="top"><h2>Layanan</h2><button class="ghost" id="goords" type="button">Cek Pesanan</button></div><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
 
-<form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p><div id="stats"></div>
+<form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p>
 <label for="b_link">Link target</label><input id="b_link" inputmode="url" autocapitalize="none" placeholder="https://"><p class="note-warn">Akun target tidak boleh diprivat. Pesanan pada akun privat bisa gagal.</p>
 <label for="b_qty">Jumlah</label><input id="b_qty" inputmode="numeric">
 <p class="muted" style="margin-top:18px">Total bayar</p><div class="total" id="total">Rp 0</div>
@@ -233,33 +233,8 @@ function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='
  list.forEach(x=>box.append(svcCard(x)))}
 
 function choose(x){sel=x;$('#bf').classList.remove('hide');$('#bname').textContent=x.name;$('#binfo').textContent='Jumlah '+x.min+' sampai '+x.max;
- $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();loadStats(x);$('#bf').scrollIntoView({behavior:'smooth',block:'nearest'})}
-const SC=[['pending','Pending','#d97706'],['processing','Processing','#0284c7'],['success','Success','#16a34a'],['partial','Partial','#64748b'],['error','Error','#dc2626']];
-function statRow(label,color,text){const r=document.createElement('div');r.className='stat-row';const p=document.createElement('span');p.className='pill';p.style.background=color;p.textContent=label;const t=document.createElement('span');t.textContent=text;r.append(p,t);return r}
-function ago(t){if(!t)return'';const s=Math.max(0,(Date.now()-new Date(t).getTime())/1000);
- if(s<60)return'BARU SAJA';const m=Math.floor(s/60);if(m<60)return m+' MENIT YANG LALU';
- const h=Math.floor(m/60);if(h<24)return h+' JAM YANG LALU';return Math.floor(h/24)+' HARI YANG LALU'}
+ $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();$('#bf').scrollIntoView({behavior:'smooth',block:'nearest'})}
 const SL={pending:'Pending',processing:'Diproses',success:'Sukses',partial:'Sebagian',error:'Error'};
-function spSec(title){const s=document.createElement('div');s.className='sp-sec';const h=document.createElement('h3');h.className='sp-h';h.textContent=title;s.append(h);return s}
-async function loadStats(x){const box=$('#stats');box.textContent='';
- try{const r=await fetch('/api/buyer/stats/'+encodeURIComponent(x.id));const d=await r.json();
-  if(!sel||sel.id!==x.id)return;box.textContent='';
-  if(!d.status){const p=document.createElement('p');p.className='muted';p.style.marginTop='12px';p.textContent=d.error||'Statistik gagal dimuat.';box.append(p);return}
-  const card=document.createElement('div');card.className='sp';const tot=d.total||0;
-  const s1=spSec('Rata-Rata:');const p1=document.createElement('p');p1.append('Jumlah Pesan Rata-Rata: ');const b1=document.createElement('b');b1.textContent=Number(d.avg||0).toLocaleString('id-ID');p1.append(b1);s1.append(p1);card.append(s1);
-  const s2=spSec('Statistik Pesanan');
-  s2.append(statRow('Total Pesanan','#6b7fd7',tot+' pesanan'));
-  SC.forEach(k=>{const c=(d.counts&&d.counts[k[0]])||0;s2.append(statRow(k[1],k[2],(tot?+(c*100/tot).toFixed(2):0)+'% ('+c+' pesanan)'))});card.append(s2);
-  const s3=spSec('Pesanan Terakhir');
-  if(!d.last||!d.last.length){const e=document.createElement('p');e.className='muted';e.textContent='Belum ada pesanan.';s3.append(e)}
-  else d.last.forEach(o=>{const it=document.createElement('div');it.className='sp-last sp-'+o.st;
-    const t=ago(o.at);if(t){const a=document.createElement('p');a.className='sp-ago';a.textContent=t;it.append(a)}
-    const st=document.createElement('p');st.className='sp-st';st.textContent='Status: '+(SL[o.st]||o.st);it.append(st);
-    if(o.qty){const q=document.createElement('p');q.className='sp-q';q.append('Jumlah Pesanan: ');const g=document.createElement('span');g.className='tag';g.textContent=o.qty;q.append(g);it.append(q)}
-    s3.append(it)});
-  card.append(s3);
-  box.append(card)}
- catch{}}
 function calc(){if(!sel)return;const q=Number($('#b_qty').value)||0;tot=Math.ceil(q*sel.price/1000);$('#total').textContent=rp(tot);
  note($('#bmsg'),'',(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':'')}
 $('#cat').onchange=showSvs;$('#b_qty').oninput=calc;
