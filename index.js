@@ -398,8 +398,8 @@ app.post('/api/buyer/status', buyerOnly, run(async (req) => {
   const d = await provider('status', { id: o.provider_order_id });
   const st = d && d.status && d.data && typeof d.data === 'object' ? d.data.status : null;
   if (!st) return { status: false, error: 'Status belum tersedia.' };
-  await rest('orders', '?id=eq.' + id, { method: 'PATCH', body: { status: String(st) } });
-  return { status: true, state: String(st) };
+  const r = await applyProviderStatus(o, st);
+  return { status: true, state: String(st), refunded: r.refunded };
 }));
 
 // Contoh data mentah layanan dari Sprint Pedia (untuk mengecek field apa saja yang dikirim API)
@@ -498,6 +498,21 @@ const stGroup = (s) => {
   return 'pending';
 };
 // Perbarui status pesanan yang belum selesai langsung dari Sprint Pedia
+// Terapkan status baru dari Sprint Pedia. Jika pesanan yang masih Pending/Diproses berubah jadi Error/Canceled,
+// saldo pembeli dikembalikan SEKALI (atomik: hanya satu proses yang berhasil mengubah status, jadi tidak bisa ganda).
+async function applyProviderStatus(o, st) {
+  const next = String(st);
+  if (next === String(o.status)) return { changed: false, refunded: false };
+  const was = stGroup(o.status), now = stGroup(next);
+  const hit = await rest('orders', '?select=id,user_id,price&id=eq.' + o.id + '&status=eq.' + enc(o.status), { method: 'PATCH', prefer: 'return=representation', body: { status: next } });
+  if (!hit || !hit.length) return { changed: false, refunded: false };
+  let refunded = false;
+  if (now === 'error' && (was === 'pending' || was === 'processing')) {
+    try { await rpc('adjust_balance', { p_user: hit[0].user_id, p_delta: num(hit[0].price) }); refunded = true; }
+    catch (e) { console.error('Refund otomatis gagal untuk pesanan #' + o.id + ':', e.message); }
+  }
+  return { changed: true, refunded };
+}
 async function syncOrders(limit) {
   let rows;
   try { rows = await rest('orders', '?select=id,status,provider_order_id&provider_order_id=not.is.null&or=(manual_status.is.null,manual_status.eq.false)&order=id.desc&limit=300'); }
@@ -511,7 +526,7 @@ async function syncOrders(limit) {
     try {
       const d = await provider('status', { id: o.provider_order_id });
       const st = d && d.status && d.data && typeof d.data === 'object' ? d.data.status : null;
-      if (st && String(st) !== String(o.status)) { await rest('orders', '?id=eq.' + o.id, { method: 'PATCH', body: { status: String(st) } }); updated++; }
+      if (st && (await applyProviderStatus(o, st)).changed) updated++;
     } catch (e) { /* lewati, dicoba lagi nanti */ }
   }));
   return { checked: todo.length, updated };
