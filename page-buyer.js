@@ -218,10 +218,9 @@ function showPlats(){const cnt={};SV.forEach(x=>{const p=plat(x.category);cnt[p]
 function pickPlat(p){document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.textContent===p)));
  const cats=[...new Set(SV.filter(x=>plat(x.category)===p).map(x=>x.category))];
  const s=$('#cat');s.textContent='';cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.append(o)});s.disabled=false;showSvs()}
-function svIco(x){const w=String(x.category||x.name||'?').trim().match(/[A-Za-z0-9]/);return w?w[0].toUpperCase():'#'}
 function svcCard(x){const b=document.createElement('div');b.className='svc';b.tabIndex=0;b.setAttribute('role','button');b.setAttribute('aria-pressed','false');
   const mk=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
-  b.append(mk('span','sv-min','Min '+Number(x.min).toLocaleString('id-ID')),mk('span','sv-ico',svIco(x)),mk('b','',x.name),
+  b.append(mk('span','sv-min','Min '+Number(x.min).toLocaleString('id-ID')),mk('b','',x.name),
    mk('span','sv-chip','Maks '+Number(x.max).toLocaleString('id-ID')),mk('span','sv-price',rp100(x.price)+' / 100'),mk('span','sv-btn','Pesan Sekarang'));
   const go=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};
   b.onclick=go;b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};return b}

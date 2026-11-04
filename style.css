@@ -378,3 +378,8 @@ body{background:radial-gradient(900px 420px at 50% -120px,rgba(56,189,248,.16),t
 
 .note-warn{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:.8rem;line-height:1.4}
 #notice{border-color:rgba(251,191,36,.4)}
+
+/* kartu layanan tanpa ikon/inisial: lencana Min berada di atas judul */
+.svc .sv-ico{display:none}
+.svc .sv-min{position:static;align-self:flex-start;margin-bottom:2px}
+.svc b{min-height:3.9em}
