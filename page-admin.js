@@ -70,6 +70,11 @@ module.exports = {
 <div class="err" id="p_msg" role="status"></div><button type="submit" style="width:100%">Simpan pembayaran</button></form></div>
 
 <div data-p="set" class="hide">
+<form class="box" id="anf" autocomplete="off"><h2>Pemberitahuan untuk pembeli</h2>
+<p class="muted" style="margin-top:6px">Tampil di bagian atas dasbor pembeli. Kosongkan lalu simpan untuk menyembunyikan.</p>
+<label for="an_t">Isi pemberitahuan</label><textarea id="an_t" rows="3" maxlength="500" placeholder="Contoh: Layanan X sedang gangguan, estimasi pulih jam 20.00 WIB."></textarea>
+<div class="err" id="an_msg" role="status"></div><button type="submit">Simpan pemberitahuan</button></form>
+
 <form class="box" id="form" autocomplete="off"><h2>Key Sprint Pedia</h2>
 <p class="muted" style="margin-top:6px">Kosongkan kolom yang tidak ingin diubah.</p>
 <label for="secret_key">Secret key</label><input id="secret_key" type="password" autocomplete="off">
@@ -289,7 +294,10 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
-init();loadWa();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();
+async function loadAn(){try{const d=await api('/api/admin/announce');if(d.status)$('#an_t').value=d.text||''}catch{}}
+$('#anf').onsubmit=async e=>{e.preventDefault();const d=await post('/api/admin/announce',{text:$('#an_t').value});
+ say($('#an_msg'),d.status,d.status?(d.text?'Pemberitahuan tersimpan.':'Pemberitahuan dikosongkan (disembunyikan).'):errOf(d))};
+init();loadWa();loadAn();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();
 /* ---------- Notifikasi push (seperti alzDev) ---------- */
 const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 let pushOn=false,lastEv=0;

@@ -689,6 +689,15 @@ const normWa = (v) => {
   else if (d.startsWith('8')) d = '62' + d;
   return d.length >= 9 && d.length <= 15 ? d : null;
 };
+// Pemberitahuan untuk pembeli (isi dari dasbor admin; kosong = disembunyikan)
+app.get('/api/announce', run(async () => ({ status: true, text: (await getSettings()).announce || '' })));
+app.get('/api/admin/announce', adminOnly, run(async () => ({ status: true, text: (await getSettings()).announce || '' })));
+app.post('/api/admin/announce', adminOnly, run(async (req, res) => {
+  const t = String((req.body || {}).text || '').trim();
+  if (t.length > 500) { res.status(400); return { status: false, error: 'Maksimal 500 karakter.' }; }
+  await saveSettings({ announce: t });
+  return { status: true, text: t };
+}));
 app.get('/api/wa', run(async () => ({ status: true, wa: (await getSettings()).wa_number || '' })));
 app.get('/api/admin/wa', adminOnly, run(async () => ({ status: true, wa: (await getSettings()).wa_number || '' })));
 app.post('/api/admin/wa', adminOnly, run(async (req, res) => {

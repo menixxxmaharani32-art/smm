@@ -22,6 +22,7 @@ module.exports = {
 <section class="box" id="who"><div class="top"><div><b id="uname"></b><p class="muted" id="ubal"></p></div>
 <button class="ghost" id="bout" type="button">Keluar</button></div>
 <p class="muted" style="margin-top:10px">Isi saldo lewat menu Deposit.</p></section>
+<section class="box hide" id="notice"><h2>Pemberitahuan</h2><p id="notice_t" style="margin-top:6px;white-space:pre-line"></p></section>
 
 <nav class="tabs" id="mtabs">
 <button class="tab" type="button" data-t="sv" aria-selected="true">Layanan</button>
@@ -37,7 +38,7 @@ module.exports = {
 <section class="box"><div class="top"><h2>Layanan</h2><button class="ghost" id="goords" type="button">Cek Pesanan</button></div><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
 
 <form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p><div id="stats"></div>
-<label for="b_link">Link target</label><input id="b_link" inputmode="url" autocapitalize="none" placeholder="https://">
+<label for="b_link">Link target</label><input id="b_link" inputmode="url" autocapitalize="none" placeholder="https://"><p class="note-warn">Akun target tidak boleh diprivat. Pesanan pada akun privat bisa gagal.</p>
 <label for="b_qty">Jumlah</label><input id="b_qty" inputmode="numeric">
 <p class="muted" style="margin-top:18px">Total bayar</p><div class="total" id="total">Rp 0</div>
 <div class="err" id="bmsg" role="status"></div><button type="submit" id="bgo" style="width:100%">Pesan</button></form>
@@ -158,9 +159,11 @@ async function openPay(dep){curDep=dep;method=null;$('#dpay_amt').textContent=rp
  $('#pmsg').textContent='';$('#d_proof').value='';$('#d_fn').textContent='Pilih foto bukti transfer';$('#pay').textContent='';dview('pay');
  const mb=$('#methods');mb.textContent='Memuat…';
  try{const r=await fetch('/api/buyer/payment');const d=await r.json();payInfo=d;mb.textContent='';
-  const ms=[];if(d.status&&d.dana)ms.push(['dana','Dana']);if(d.status&&d.qris)ms.push(['qris','QRIS']);
+  const ms=[];const off=-new Date().getTimezoneOffset(),outWib=off!==420,zn=off===480?'WITA':off===540?'WIT':'luar WIB';
+  if(d.status&&d.dana)ms.push(['dana',outWib&&d.qris?'Dana (disarankan)':'Dana']);if(d.status&&d.qris)ms.push(['qris','QRIS']);
   if(!ms.length){mb.textContent='Metode pembayaran belum diatur admin. Hubungi admin.';return}
   ms.forEach(m=>{const b=document.createElement('button');b.type='button';b.className='chip';b.textContent=m[1];b.dataset.k=m[0];b.setAttribute('aria-pressed','false');b.onclick=()=>pickMethod(m[0]);mb.append(b)});
+  if(outWib&&d.dana&&d.qris){const w=document.createElement('p');w.className='note-warn';w.style.width='100%';w.textContent='Zona waktu Anda '+zn+' (di luar WIB). Disarankan transfer ke Dana.';mb.append(w)}
   if(ms.length===1)pickMethod(ms[0][0]);else{const h=document.createElement('p');h.className='muted';h.id='mhint';h.style.cssText='width:100%;font-size:.88rem';h.textContent='Pilih Dana atau QRIS.';mb.append(h)}}
  catch{mb.textContent='Gagal memuat metode pembayaran.'}}
 function pickMethod(k){method=k;const h=$('#mhint');if(h)h.remove();
@@ -361,6 +364,7 @@ $('#rcopy').onclick=async()=>{const ids=[...document.querySelectorAll('.rc-cb:ch
  try{await navigator.clipboard.writeText(ids);$('#rcopy').textContent='Tersalin'}catch{$('#rcopy').textContent='Gagal menyalin'}setTimeout(()=>{$('#rcopy').textContent='Salin ID Pesanan'},1500)};
 
 
+fetch('/api/announce').then(r=>r.json()).then(d=>{if(d&&d.status&&d.text){$('#notice_t').textContent=d.text;$('#notice').classList.remove('hide')}}).catch(()=>{});
 fetch('/api/wa').then(r=>r.json()).then(d=>{if(d&&d.status&&d.wa){$('#help_a').href='https://wa.me/'+d.wa;$('#help').classList.remove('hide')}}).catch(()=>{});
 setMode(location.hash==='#daftar'?'up':'in');
 // "Cara deposit" dilipat supaya tab Deposit tidak panjang (ketuk judulnya untuk membuka)

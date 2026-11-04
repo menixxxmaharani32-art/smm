@@ -375,3 +375,6 @@ body{background:radial-gradient(900px 420px at 50% -120px,rgba(56,189,248,.16),t
 [data-p="rec"] .row input{flex:1;min-width:0}
 [data-p="rec"] .row button{margin-top:0;flex-shrink:0}
 @media(max-width:380px){.rbar button{padding:4px 7px}}
+
+.note-warn{margin-top:8px;padding:8px 10px;border-radius:10px;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.35);color:#fbbf24;font-size:.8rem;line-height:1.4}
+#notice{border-color:rgba(251,191,36,.4)}
