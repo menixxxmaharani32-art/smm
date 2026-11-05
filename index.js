@@ -423,13 +423,13 @@ app.post('/api/admin/recommended', adminOnly, run(async (req, res) => {
   const raw = (req.body || {}).ids;
   if (!Array.isArray(raw)) { res.status(400); return { status: false, error: 'Data tidak valid.' }; }
   const ids = [...new Set(raw.map((x) => String(x).trim()).filter((x) => x && x.length <= 40))];
-  if (ids.length > 10) { res.status(400); return { status: false, error: 'Maksimal 10 layanan rekomendasi.' }; }
+  if (ids.length > 20) { res.status(400); return { status: false, error: 'Maksimal 20 layanan rekomendasi.' }; }
   await saveSettings({ recommended: JSON.stringify(ids) });
   return { status: true };
 }));
 // Cari layanan lewat ID (dipakai untuk menambah rekomendasi dengan mengetik ID layanan; boleh banyak ID dipisah koma/spasi)
 app.get('/api/admin/services/lookup', adminOnly, run(async (req, res) => {
-  const ids = [...new Set(String(req.query.ids || '').split(/[\s,;]+/).filter(Boolean))].slice(0, 10);
+  const ids = [...new Set(String(req.query.ids || '').split(/[\s,;]+/).filter(Boolean))].slice(0, 20);
   const valid = ids.filter((i) => /^[A-Za-z0-9_-]{1,40}$/.test(i));
   if (!valid.length) { res.status(400); return { status: false, error: 'Masukkan ID layanan yang valid (angka/huruf).' }; }
   let rows = [];

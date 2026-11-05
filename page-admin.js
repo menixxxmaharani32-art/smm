@@ -50,7 +50,7 @@ module.exports = {
 
 <div data-p="rec" class="hide">
 <section class="box"><h2>Layanan rekomendasi<span class="badge" id="reccnt"></span></h2>
-<p class="muted" style="margin-top:6px">Tampil paling atas di halaman pembeli. Maksimal 10 layanan.</p>
+<p class="muted" style="margin-top:6px">Tampil paling atas di halaman pembeli. Maksimal 20 layanan.</p>
 <div id="reclist" style="margin-top:8px"></div><div class="err" id="recmsg" role="status"></div></section>
 <section class="box"><h2>Tambah layanan</h2>
 <p class="muted" style="margin-top:6px">Tambah lewat ID layanan (boleh banyak ID, pisahkan dengan koma).</p>
@@ -240,7 +240,7 @@ $('#tform').onsubmit=async e=>{e.preventDefault();
 
 /* ---------- Rekomendasi ---------- */
 let REC=[];
-function drawRec(){const box=$('#reclist');box.textContent='';$('#reccnt').textContent=REC.length+'/10';
+function drawRec(){const box=$('#reclist');box.textContent='';$('#reccnt').textContent=REC.length+'/20';
  if(!REC.length){box.textContent='Belum ada layanan rekomendasi.';return}
  REC.forEach((x,i)=>{const row=document.createElement('div');row.className='rrow';
   const no=document.createElement('span');no.className='rno';no.textContent=i+1;
@@ -251,7 +251,20 @@ function drawRec(){const box=$('#reclist');box.textContent='';$('#reccnt').textC
   const bar=document.createElement('div');bar.className='rbar';
   bar.append(btn('Naik','ghost',()=>moveRec(i,-1)),btn('Turun','ghost',()=>moveRec(i,1)),btn('Hapus','ghost',()=>{REC.splice(i,1);saveRec()}));
   row.append(no,tx,bar);box.append(row)})}
-function moveRec(i,d){const j=i+d;if(j<0||j>=REC.length)return;const t=REC[i];REC[i]=REC[j];REC[j]=t;saveRec()}
+let recT=null;
+function saveRecSoon(){clearTimeout(recT);recT=setTimeout(async()=>{try{const d=await post('/api/admin/recommended',{ids:REC.map(x=>x.id)});say($('#recmsg'),d.status,d.status?'Urutan tersimpan.':errOf(d))}catch{}},500)}
+// Geser halus: urutan diubah langsung di layar (animasi), penyimpanan menyusul di latar belakang tanpa memuat ulang daftar
+function moveRec(i,d){const j=i+d;if(j<0||j>=REC.length)return;
+ const box=$('#reclist'),rows=[...box.children],ya=rows[i]?rows[i].offsetTop:0,yb=rows[j]?rows[j].offsetTop:0,st=box.scrollTop;
+ const t=REC[i];REC[i]=REC[j];REC[j]=t;drawRec();box.scrollTop=st;
+ const nr=[...box.children],na=nr[j],nb=nr[i];
+ if(na&&nb&&rows.length===nr.length){
+  [[na,ya-na.offsetTop],[nb,yb-nb.offsetTop]].forEach(p=>{p[0].style.transition='none';p[0].style.transform='translateY('+p[1]+'px)'});
+  na.offsetHeight;
+  [na,nb].forEach(e=>{e.style.transition='transform .25s ease';e.style.transform=''});
+  na.classList.add('moved');setTimeout(()=>na.classList.remove('moved'),700);
+  na.scrollIntoView({block:'nearest',behavior:'smooth'})}
+ saveRecSoon()}
 async function loadRec(){try{const d=await api('/api/admin/recommended');if(d.status){REC=d.data;drawRec()}else $('#reclist').textContent=errOf(d)}catch{}}
 async function saveRec(){try{const d=await post('/api/admin/recommended',{ids:REC.map(x=>x.id)});
   say($('#recmsg'),d.status,d.status?'Tersimpan. Langsung tampil di halaman pembeli.':errOf(d));await loadRec();searchRec()}catch{}}
@@ -261,18 +274,18 @@ async function searchRec(){const q=$('#rec_q').value.trim();const box=$('#recres
   if(!d.data.length){box.textContent='Layanan tidak ditemukan.';return}
   d.data.forEach(x=>{const has=REC.some(r=>r.id===x.id);
    const it=item(x.name,(has?'Sudah ditambahkan | ':'')+x.category+' | '+rp100(x.price)+' / 100',()=>{
-    if(has)return;if(REC.length>=10){say($('#recmsg'),false,'Maksimal 10 layanan rekomendasi.');return}
+    if(has)return;if(REC.length>=20){say($('#recmsg'),false,'Maksimal 20 layanan rekomendasi.');return}
     REC.push(x);saveRec()});
    if(has)it.style.opacity='.55';box.append(it)})}catch{}}
 async function addRecById(){const m=$('#recmsg'),inp=$('#rec_id'),v=inp.value.trim();if(!v)return;
  try{const d=await api('/api/admin/services/lookup?ids='+encodeURIComponent(v));
   if(!d.status){say(m,false,errOf(d));return}
   let add=0,dup=0,full=false;
-  for(const x of d.data){if(REC.some(r=>r.id===x.id)){dup++;continue}if(REC.length>=10){full=true;break}REC.push(x);add++}
+  for(const x of d.data){if(REC.some(r=>r.id===x.id)){dup++;continue}if(REC.length>=20){full=true;break}REC.push(x);add++}
   if(add){await saveRec();inp.value=''}
   const nf=d.notFound||[],parts=[];
   if(add)parts.push(add+' layanan ditambahkan');if(dup)parts.push(dup+' sudah ada');
-  if(full)parts.push('batas 10 layanan tercapai');if(nf.length)parts.push('ID tidak ditemukan: '+nf.join(', '));
+  if(full)parts.push('batas 20 layanan tercapai');if(nf.length)parts.push('ID tidak ditemukan: '+nf.join(', '));
   say(m,add>0&&!nf.length&&!full,parts.join('. ')||'Tidak ada yang ditambahkan.')}catch{}}
 $('#rec_add').onclick=addRecById;$('#rec_id').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();addRecById()}};
 let rtm;$('#rec_q').oninput=()=>{clearTimeout(rtm);rtm=setTimeout(searchRec,350)};
