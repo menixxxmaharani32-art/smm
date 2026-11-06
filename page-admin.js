@@ -18,6 +18,7 @@ module.exports = {
 <section class="stat"><p class="lbl">Hari ini</p><div class="num" id="rtoday">…</div><p class="sub" id="rtodaysub"></p></section>
 <section class="stat"><p class="lbl">Minggu ini</p><div class="num" id="rweek">…</div><p class="sub" id="rweeksub"></p></section>
 <section class="stat"><p class="lbl">Total keseluruhan</p><div class="num" id="rtotal">…</div><p class="sub" id="rcount"></p></section>
+<section class="stat"><p class="lbl">Pembeli terdaftar</p><div class="num" id="rbuyers">…</div><p class="sub" id="rbuyerssub"></p></section>
 <section class="stat" id="godp" role="button" tabindex="0"><p class="lbl">Menunggu konfirmasi</p><div class="num warn" id="pcount">…</div><p class="sub">deposit menunggu persetujuan</p></section>
 </div>
 <section class="box"><h2 class="ttl">Rincian Pendapatan</h2>
@@ -168,6 +169,7 @@ async function loadRevenue(){
  try{const d=await api('/api/admin/revenue');
   if(!d.status){$('#rnote').textContent=errOf(d);return}
   RV=d;big($('#rtotal'),d.total);$('#rcount').textContent=Number(d.orders).toLocaleString('id-ID')+' pesanan';
+  if(d.buyers){$('#rbuyers').textContent=Number(d.buyers.total).toLocaleString('id-ID');$('#rbuyerssub').textContent='Hari ini +'+d.buyers.today+NL+'Bulan ini +'+d.buyers.month}
   if(!d.has_date){$('#rnote').textContent='Data tanggal pesanan belum tersedia, hanya total yang ditampilkan.';return}
   const t0=pd(d.now),wk=t0-((new Date(t0).getUTCDay()+6)%7)*D1,n=new Date(t0),Y=n.getUTCFullYear(),M=n.getUTCMonth();
   const m=sumR(ymd(Date.UTC(Y,M,1)),d.now),pm=sumR(ymd(Date.UTC(Y,M-1,1)),ymd(Date.UTC(Y,M,0))),td=sumR(d.now,d.now),yd=sumR(ymd(t0-D1),ymd(t0-D1)),w=sumR(ymd(wk),d.now),pw=sumR(ymd(wk-7*D1),ymd(wk-D1));

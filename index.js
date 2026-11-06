@@ -113,14 +113,32 @@ const run = (fn) => async (req, res) => {
 };
 
 // Panggil API Sprint Pedia memakai key yang tersimpan
-async function provider(pathName, params) {
+// Waktu terakhir Sprint Pedia terdeteksi tidak merespons/maintenance (dipakai agar pesanan baru tidak memotong saldo sia-sia)
+let provDownAt = 0;
+async function provider(pathName, params, ms = 6000) {
   const s = await getSettings();
   if (!s.secret_key || !s.api_key) return { status: false, error: 'Key belum diisi.' };
-  const r = await fetch('https://sprintpedia.id/api/' + pathName, {
-    method: 'POST',
-    body: new URLSearchParams({ secret_key: s.secret_key, api_key: s.api_key, ...params }),
-  });
-  return r.json();
+  let t;
+  try {
+    const r = await fetch('https://sprintpedia.id/api/' + pathName, {
+      method: 'POST',
+      body: new URLSearchParams({ secret_key: s.secret_key, api_key: s.api_key, ...params }),
+      signal: AbortSignal.timeout(ms), // jangan menunggu tanpa batas: fungsi Vercel dibatasi ~10 detik
+    });
+    t = await r.text();
+  } catch (e) {
+    provDownAt = Date.now();
+    const to = !!e && (e.name === 'TimeoutError' || e.name === 'AbortError'); // permintaan sempat terkirim tapi tidak ada balasan: hasil TIDAK PASTI
+    return { status: false, down: true, timeout: to, error: 'Sprint Pedia tidak merespons.' };
+  }
+  try { return JSON.parse(t); }
+  catch (e) { provDownAt = Date.now(); return { status: false, down: true, error: 'Sprint Pedia sedang maintenance.' }; } // balasan bukan JSON (halaman maintenance)
+}
+let lastDownNote = 0;
+async function notifyDown() { // beri tahu admin, maksimal 1x per 10 menit
+  if (Date.now() - lastDownNote < 600000) return;
+  lastDownNote = Date.now();
+  await notify('provider', 'Sprint Pedia gangguan', 'Server Sprint Pedia tidak merespons. Pesanan baru gagal dan saldo pembeli dikembalikan otomatis.', '/admin');
 }
 
 // Semua layanan dari database (cache 30 detik)
@@ -191,7 +209,7 @@ app.post('/api/settings', adminOnly, run(async (req, res) => {
 app.get('/api/profile', adminOnly, run(() => provider('profile')));
 
 app.post('/api/services/sync', adminOnly, run(async () => {
-  const d = await provider('services');
+  const d = await provider('services', {}, 20000);
   if (!d.status || !Array.isArray(d.data)) return d;
   const now = new Date().toISOString();
   const rows = d.data.map((x) => ({ id: String(x.id), category: x.category || '', name: x.name || x.title || '', data: x, updated_at: now }));
@@ -347,6 +365,7 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
   const total = Math.ceil((qty * sellUnit(sv.price, m)) / 1000);
   if (!(total > 0)) return { status: false, error: 'Harga layanan belum valid. Hubungi admin.' };
   const uid = req.buyerId;
+  if (Date.now() - provDownAt < 60000) return { status: false, error: 'Penyedia layanan sedang gangguan/maintenance. Saldo Anda tidak dipotong, coba lagi beberapa saat lagi.' };
   const left = await rpc('adjust_balance', { p_user: uid, p_delta: -total });
   if (left === null) return { status: false, error: 'Saldo tidak cukup untuk pesanan ini.' };
   const refund = () => rpc('adjust_balance', { p_user: uid, p_delta: total });
@@ -355,8 +374,20 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
   let queue = bal !== null && bal < cost; // saldo Sprint Pedia kurang: pesanan ditahan (Pending)
   let d = null;
   if (!queue) {
-    try { d = await provider('order', { service: sv.id, target: tgt, quantity: String(qty) }); }
+    try { d = await provider('order', { service: sv.id, target: tgt, quantity: String(qty) }, 8000); }
     catch (e) { await refund(); throw e; }
+    if (d && d.timeout) { // belum pasti terkirim atau tidak: jangan refund (bisa jadi pesanan sudah masuk di Sprint Pedia)
+      let oid = '';
+      try { const [r] = await rest('orders', '?select=id', { method: 'POST', prefer: 'return=representation', body: { user_id: uid, service_id: sv.id, service_name: sv.name, target: tgt, quantity: qty, price: total, provider_order_id: null, status: 'pending' } }); oid = r ? r.id : ''; }
+      catch (e) { await refund(); return { status: false, error: 'Pesanan gagal diproses. Saldo Anda dikembalikan. Coba lagi nanti atau hubungi admin.' }; }
+      await notify('provider', 'Pesanan perlu dicek', 'Pesanan #' + oid + ' (' + sv.name + ' x' + qty + ') tidak mendapat balasan dari Sprint Pedia. Cek di Sprint Pedia. Jika tidak ada, kembalikan saldo pembeli lewat Top up.', '/admin#ord');
+      return { status: true, total, balance: left };
+    }
+    if (d && d.down) {
+      await refund();
+      await notifyDown();
+      return { status: false, error: 'Penyedia layanan sedang gangguan/maintenance. Saldo Anda dikembalikan, coba lagi beberapa saat lagi.' };
+    }
     if (!d || !d.status) {
       if (noBalance(d)) queue = true;
       else {
@@ -483,8 +514,22 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
     }
     if (part.length < 1000) break;
   }
+  // Jumlah pembeli yang mendaftar (total, hari ini, bulan ini menurut WIB)
+  const buyers = { total: 0, today: 0, month: 0 };
+  try {
+    for (let off = 0; off < 100000; off += 1000) {
+      let part;
+      try { part = await rest('users', '?select=created_at&order=id.asc&limit=1000&offset=' + off); }
+      catch (e) { if (off) throw e; part = await rest('users', '?select=id&order=id.asc&limit=1000&offset=0'); } // tanpa kolom tanggal: hanya total
+      for (const u of part) {
+        buyers.total++;
+        if (u.created_at) { const w = wib(u.created_at); if (w.slice(0, 7) === monKey) { buyers.month++; if (w.slice(0, 10) === dayKey) buyers.today++; } }
+      }
+      if (part.length < 1000) break;
+    }
+  } catch (e) { console.error('Hitung pembeli gagal:', e.message); }
   Object.keys(daily).forEach((k) => { daily[k][0] = Math.round(daily[k][0]); });
-  return { status: true, total: Math.round(total), today: Math.round(today), month: Math.round(month), orders: count, has_date: hasDate, daily, now: dayKey };
+  return { status: true, total: Math.round(total), today: Math.round(today), month: Math.round(month), orders: count, has_date: hasDate, daily, now: dayKey, buyers };
 }));
 
 const stGroup = (s) => {
@@ -542,7 +587,7 @@ app.post('/api/admin/orders/sync', adminOnly, run(async () => {
 const noBalance = (d) => /saldo|balance|insufficient|funds/i.test(JSON.stringify(d || ''));
 async function providerBalance() {
   try {
-    const d = await provider('profile');
+    const d = await provider('profile', {}, 2000);
     const b = d && d.status && d.data ? Number(d.data.balance) : NaN;
     return Number.isFinite(b) ? b : null;
   } catch (e) { return null; }
@@ -569,14 +614,19 @@ async function processQueue(limit) {
         const [c] = (await rest('orders', '?select=id&id=eq.' + o.id + '&status=eq.queued', { method: 'PATCH', prefer: 'return=representation', body: { status: 'sending' } })) || [];
         if (!c) continue;
         let d;
-        try { d = await provider('order', { service: String(o.service_id), target: o.target, quantity: String(o.quantity) }); }
+        try { d = await provider('order', { service: String(o.service_id), target: o.target, quantity: String(o.quantity) }, 8000); }
         catch (e) { await back(o.id); break; }
         if (d && d.status) {
           const pid = d.data && (d.data.id || d.data.order_id);
           await rest('orders', '?id=eq.' + o.id, { method: 'PATCH', body: { status: 'pending', provider_order_id: pid ? String(pid) : null } });
           out.processed++;
           if (bal !== null) bal -= cost;
-        } else if (noBalance(d) || (d && d.error === 'Key belum diisi.')) { await back(o.id); break; }
+        } else if (d && d.timeout) { // tidak pasti: jangan kirim ulang (bisa ganda)
+          await rest('orders', '?id=eq.' + o.id, { method: 'PATCH', body: { status: 'pending' } }).catch(() => {});
+          await notify('provider', 'Pesanan perlu dicek', 'Pesanan antre #' + o.id + ' tidak mendapat balasan dari Sprint Pedia. Cek di Sprint Pedia. Jika tidak ada, kembalikan saldo pembeli lewat Top up.', '/admin#ord');
+          break;
+        }
+        else if (noBalance(d) || (d && (d.down || d.error === 'Key belum diisi.'))) { await back(o.id); break; } // saldo kurang / provider gangguan: tetap antre
         else {
           console.error('Pesanan antre ditolak:', JSON.stringify(d));
           await rpc('adjust_balance', { p_user: o.user_id, p_delta: num(o.price) }).catch(() => {}); // saldo pembeli dikembalikan
