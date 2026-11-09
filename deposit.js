@@ -83,6 +83,32 @@ module.exports = function mountDeposit(app, d) {
     return { status: true };
   }));
 
+  /* ---------- Tutorial transfer (foto + teks dari admin, tampil di menu Deposit pembeli) ---------- */
+  async function tutorial() {
+    const s = await getSettings();
+    const [i] = await rest('settings', '?select=value&key=eq.pay_tutor_img');
+    return { text: s.pay_tutor_text || '', img: (i && i.value) || '' };
+  }
+  app.get('/api/buyer/tutorial', buyerOnly, run(async () => ({ status: true, ...(await tutorial()) })));
+  app.get('/api/admin/tutorial', adminOnly, run(async () => ({ status: true, ...(await tutorial()) })));
+  app.post('/api/admin/tutorial', adminOnly, run(async (req, res) => {
+    const b = req.body || {};
+    const data = {};
+    if (b.text !== undefined) {
+      const t = String(b.text).trim();
+      if (t.length > 1500) { res.status(400); return { status: false, error: 'Teks tutorial maksimal 1500 karakter.' }; }
+      data.pay_tutor_text = t;
+    }
+    if (b.remove_img) data.pay_tutor_img = '';
+    else if (b.img) {
+      if (!validImg(b.img, 800000)) { res.status(400); return { status: false, error: 'Foto tutorial harus JPG, PNG, atau WEBP dan tidak terlalu besar.' }; }
+      data.pay_tutor_img = b.img;
+    }
+    if (!Object.keys(data).length) { res.status(400); return { status: false, error: 'Tidak ada yang diubah.' }; }
+    await saveSettings(data);
+    return { status: true };
+  }));
+
   /* ---------- Admin: persetujuan deposit ---------- */
   async function withNames(rows) {
     const ids = [...new Set(rows.map((r) => r.user_id))];

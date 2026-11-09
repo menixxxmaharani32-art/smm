@@ -19,6 +19,7 @@ module.exports = {
 <section class="stat"><p class="lbl">Minggu ini</p><div class="num" id="rweek">…</div><p class="sub" id="rweeksub"></p></section>
 <section class="stat"><p class="lbl">Total keseluruhan</p><div class="num" id="rtotal">…</div><p class="sub" id="rcount"></p></section>
 <section class="stat"><p class="lbl">Pembeli terdaftar</p><div class="num" id="rbuyers">…</div><p class="sub" id="rbuyerssub"></p></section>
+<section class="stat"><p class="lbl">Total pesanan</p><div class="num" id="rorders">…</div><p class="sub" id="rorderssub"></p></section>
 <section class="stat" id="godp" role="button" tabindex="0"><p class="lbl">Menunggu konfirmasi</p><div class="num warn" id="pcount">…</div><p class="sub">deposit menunggu persetujuan</p></section>
 </div>
 <section class="box"><h2 class="ttl">Rincian Pendapatan</h2>
@@ -68,7 +69,14 @@ module.exports = {
 <label for="p_qris">Foto QRIS</label><input id="p_qris" type="file" accept="image/*">
 <div id="p_prev" style="margin-top:12px"></div>
 <button type="button" class="ghost hide" id="p_del">Hapus foto QRIS</button>
-<div class="err" id="p_msg" role="status"></div><button type="submit" style="width:100%">Simpan pembayaran</button></form></div>
+<div class="err" id="p_msg" role="status"></div><button type="submit" style="width:100%">Simpan pembayaran</button></form>
+<form class="box" id="tutf" autocomplete="off"><h2>Tutorial transfer</h2>
+<p class="muted" style="margin-top:6px">Foto dan teks panduan cara transfer. Tampil di menu Deposit pembeli. Kosongkan teks lalu simpan untuk menyembunyikan teksnya.</p>
+<label for="t_text">Teks tutorial</label><textarea id="t_text" rows="5" maxlength="1500" placeholder="Contoh: 1. Buka aplikasi Dana. 2. Pilih Kirim ke nomor di atas. 3. Isi nominal sesuai deposit. 4. Screenshot bukti lalu upload."></textarea>
+<label for="t_img">Foto tutorial</label><input id="t_img" type="file" accept="image/*">
+<div id="t_prev" style="margin-top:12px"></div>
+<button type="button" class="ghost hide" id="t_del">Hapus foto tutorial</button>
+<div class="err" id="t_msg" role="status"></div><button type="submit" style="width:100%">Simpan tutorial</button></form></div>
 
 <div data-p="set" class="hide">
 <form class="box" id="anf" autocomplete="off"><h2>Pemberitahuan untuk pembeli</h2>
@@ -169,6 +177,7 @@ async function loadRevenue(){
  try{const d=await api('/api/admin/revenue');
   if(!d.status){$('#rnote').textContent=errOf(d);return}
   RV=d;big($('#rtotal'),d.total);$('#rcount').textContent=Number(d.orders).toLocaleString('id-ID')+' pesanan';
+  if(d.all_orders!==undefined){$('#rorders').textContent=Number(d.all_orders).toLocaleString('id-ID');$('#rorderssub').textContent=(d.has_date?'Hari ini +'+d.all_today+NL+'Bulan ini +'+d.all_month+NL:'')+Number(d.orders).toLocaleString('id-ID')+' sukses'}
   if(d.buyers){$('#rbuyers').textContent=Number(d.buyers.total).toLocaleString('id-ID');$('#rbuyerssub').textContent='Hari ini +'+d.buyers.today+NL+'Bulan ini +'+d.buyers.month}
   if(!d.has_date){$('#rnote').textContent='Data tanggal pesanan belum tersedia, hanya total yang ditampilkan.';return}
   const t0=pd(d.now),wk=t0-((new Date(t0).getUTCDay()+6)%7)*D1,n=new Date(t0),Y=n.getUTCFullYear(),M=n.getUTCMonth();
@@ -308,11 +317,27 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  const d=await post('/api/admin/payment',{dana:$('#p_dana').value.trim(),dana_name:$('#p_name').value.trim(),remove_qris:true});
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
+/* ---------- Tutorial transfer ---------- */
+let newTut='';
+function showTut(u){const b=$('#t_prev');b.textContent='';if(!u)return;
+ const i=document.createElement('img');i.src=u;i.alt='Tutorial transfer';i.style.cssText='max-width:100%;border-radius:12px;background:#fff';b.append(i)}
+async function loadTut(){const d=await api('/api/admin/tutorial');if(!d.status)return;
+ $('#t_text').value=d.text||'';showTut(d.img);$('#t_del').classList.toggle('hide',!d.img)}
+$('#t_img').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+ try{newTut=await img2url(f,1200,.85);showTut(newTut);say($('#t_msg'),true,'Foto dipilih. Tap Simpan tutorial.')}catch(x){newTut='';say($('#t_msg'),false,x.message)}};
+$('#tutf').onsubmit=async e=>{e.preventDefault();
+ const b={text:$('#t_text').value.trim()};if(newTut)b.img=newTut;
+ const d=await post('/api/admin/tutorial',b);say($('#t_msg'),d.status,d.status?'Tutorial tersimpan.':errOf(d));
+ if(d.status){newTut='';$('#t_img').value='';loadTut()}};
+$('#t_del').onclick=async()=>{if(!confirm('Hapus foto tutorial?'))return;
+ const d=await post('/api/admin/tutorial',{remove_img:true});
+ say($('#t_msg'),d.status,d.status?'Foto tutorial dihapus.':errOf(d));newTut='';$('#t_img').value='';loadTut()};
+
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
 async function loadAn(){try{const d=await api('/api/admin/announce');if(d.status)$('#an_t').value=d.text||''}catch{}}
 $('#anf').onsubmit=async e=>{e.preventDefault();const d=await post('/api/admin/announce',{text:$('#an_t').value});
  say($('#an_msg'),d.status,d.status?(d.text?'Pemberitahuan tersimpan.':'Pemberitahuan dikosongkan (disembunyikan).'):errOf(d))};
-init();loadWa();loadAn();loadDeposits();loadUsers();loadPay();syncAll();loadRevenue();
+init();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();syncAll();loadRevenue();
 /* ---------- Notifikasi push (seperti alzDev) ---------- */
 const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 let pushOn=false,lastEv=0;

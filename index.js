@@ -117,7 +117,7 @@ async function rpc(fn, args) {
   if (!r.ok) throw new Error('Supabase error ' + r.status + ' ' + (await r.text()).slice(0, 200));
   return r.json();
 }
-const getSettings = async () => Object.fromEntries((await rest('settings', '?select=key,value&key=neq.pay_qris')).map((x) => [x.key, x.value]));
+const getSettings = async () => Object.fromEntries((await rest('settings', '?select=key,value&key=not.in.(pay_qris,pay_tutor_img)')).map((x) => [x.key, x.value]));
 const saveSettings = (obj) =>
   rest('settings', '', { method: 'POST', prefer: 'resolution=merge-duplicates', body: Object.entries(obj).map(([key, value]) => ({ key, value })) });
 
@@ -512,6 +512,7 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
   };
   const sels = ['price,status,created_at,service_id,quantity', 'price,status,created_at', 'price,status'];
   let si = 0, hasDate = true, total = 0, today = 0, month = 0, count = 0, daily = {};
+  let allOrders = 0, allToday = 0, allMonth = 0; // semua pesanan (semua status)
   const wib = (t) => new Date(new Date(t).getTime() + 7 * 36e5).toISOString();
   const nowW = wib(Date.now());
   const dayKey = nowW.slice(0, 10), monKey = nowW.slice(0, 7);
@@ -523,6 +524,8 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
       throw e;
     }
     for (const o of part) {
+      allOrders++;
+      if (hasDate && o.created_at) { const aw = wib(o.created_at); if (aw.slice(0, 7) === monKey) { allMonth++; if (aw.slice(0, 10) === dayKey) allToday++; } }
       if (stGroup(o.status) !== 'success') continue; // hanya pesanan yang sukses
       const p = profitOf(o);
       total += p; count++;
@@ -549,7 +552,7 @@ app.get('/api/admin/revenue', adminOnly, run(async () => {
     }
   } catch (e) { console.error('Hitung pembeli gagal:', e.message); }
   Object.keys(daily).forEach((k) => { daily[k][0] = Math.round(daily[k][0]); });
-  return { status: true, total: Math.round(total), today: Math.round(today), month: Math.round(month), orders: count, has_date: hasDate, daily, now: dayKey, buyers };
+  return { status: true, total: Math.round(total), today: Math.round(today), month: Math.round(month), orders: count, all_orders: allOrders, all_today: allToday, all_month: allMonth, has_date: hasDate, daily, now: dayKey, buyers };
 }));
 
 const stGroup = (s) => {
