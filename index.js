@@ -64,13 +64,31 @@ const checkPw = (pw, stored) => {
 // Pembatas sederhana: maksimal 10 percobaan per 10 menit per IP
 const hits = new Map();
 const limited = (req, k) => {
-  const key = k + ((req.headers['x-forwarded-for'] || '').split(',')[0] || 'x');
+  const key = k + clientIp(req);
   const now = Date.now();
   const a = (hits.get(key) || []).filter((t) => now - t < 600000);
   a.push(now);
   hits.set(key, a);
   return a.length > 10;
 };
+
+/* ================= Pembatas pendaftaran per IP (disimpan di Supabase, berlaku lintas instance) ================= */
+const clientIp = (req) => String(req.headers['x-vercel-forwarded-for'] || req.headers['x-real-ip'] || (req.headers['x-forwarded-for'] || '').split(',')[0] || 'x').trim();
+const ipKey = (req, k) => k + ':' + crypto.createHash('sha256').update(clientIp(req) + '|' + secret()).digest('hex').slice(0, 32);
+const REG_MAX = 3, REG_WINDOW = 36e5; // maksimal 3 akun baru per jam per IP
+async function regBlocked(req) {
+  try {
+    const since = new Date(Date.now() - REG_WINDOW).toISOString();
+    const rows = await rest('rate_hits', '?select=id&key=eq.' + encodeURIComponent(ipKey(req, 'reg')) + '&created_at=gt.' + encodeURIComponent(since) + '&limit=' + REG_MAX);
+    return rows.length >= REG_MAX;
+  } catch (e) { console.error('rate_hits (jalankan rate_limit.sql):', e.message); return false; } // tabel belum ada: jangan blokir semua orang
+}
+async function regRecord(req) {
+  try {
+    await rest('rate_hits', '', { method: 'POST', body: { key: ipKey(req, 'reg') } });
+    rest('rate_hits', '?created_at=lt.' + encodeURIComponent(new Date(Date.now() - 864e5).toISOString()), { method: 'DELETE' }).catch(() => {});
+  } catch (e) { console.error('catat rate_hits:', e.message); }
+}
 
 /* ================= Supabase (REST, kunci server) ================= */
 const sb = (t) => `${process.env.SUPABASE_URL}/rest/v1/${t}`;
@@ -281,12 +299,14 @@ app.get('/api/catalog', buyerOnly, run(async () => {
 
 app.post('/api/buyer/register', run(async (req, res) => {
   if (limited(req, 'reg')) return { status: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' };
+  if (await regBlocked(req)) return { status: false, error: 'Pendaftaran dari jaringan ini sudah mencapai batas (maksimal ' + REG_MAX + ' akun per jam). Coba lagi nanti.' };
   const username = String((req.body || {}).username || '').trim().toLowerCase();
   const password = String((req.body || {}).password || '');
   if (!/^[a-z0-9_]{3,20}$/.test(username)) return { status: false, error: 'Username 3-20 karakter: huruf kecil, angka, atau garis bawah.' };
   if (password.length < 6 || password.length > 72) return { status: false, error: 'Password minimal 6 karakter.' };
   try {
     await rest('users', '', { method: 'POST', body: { username, password_hash: hashPw(password) } });
+    await regRecord(req);
     await notify('user', 'Pembeli baru', username + ' baru saja mendaftar.', '/admin#us');
     return { status: true }; // tidak otomatis login: pembeli diminta masuk sendiri
   } catch (e) {
