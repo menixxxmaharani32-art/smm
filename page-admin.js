@@ -70,9 +70,9 @@ module.exports = {
 <div id="p_prev" style="margin-top:12px"></div>
 <button type="button" class="ghost hide" id="p_del">Hapus foto QRIS</button>
 <div class="err" id="p_msg" role="status"></div><button type="submit" style="width:100%">Simpan pembayaran</button></form>
-<form class="box" id="tutf" autocomplete="off"><h2>Tutorial transfer</h2>
-<p class="muted" style="margin-top:6px">Foto dan teks panduan cara transfer. Tampil di menu Deposit pembeli. Kosongkan teks lalu simpan untuk menyembunyikan teksnya.</p>
-<label for="t_text">Teks tutorial</label><textarea id="t_text" rows="5" maxlength="1500" placeholder="Contoh: 1. Buka aplikasi Dana. 2. Pilih Kirim ke nomor di atas. 3. Isi nominal sesuai deposit. 4. Screenshot bukti lalu upload."></textarea>
+<form class="box" id="tutf" autocomplete="off"><h2>Tutorial unggah bukti transfer</h2>
+<p class="muted" style="margin-top:6px">Foto dan teks panduan cara mengunggah bukti transfer. Tampil ke pembeli tepat di atas kolom upload bukti di menu Deposit. Kosongkan teks lalu simpan untuk menyembunyikannya.</p>
+<label for="t_text">Teks tutorial</label><textarea id="t_text" rows="5" maxlength="1500" placeholder="Contoh: 1. Setelah transfer, screenshot bukti pembayaran. 2. Tap Pilih foto bukti transfer. 3. Pilih screenshot tadi. 4. Tap Kirim bukti transfer."></textarea>
 <label for="t_img">Foto tutorial</label><input id="t_img" type="file" accept="image/*">
 <div id="t_prev" style="margin-top:12px"></div>
 <button type="button" class="ghost hide" id="t_del">Hapus foto tutorial</button>
@@ -317,17 +317,18 @@ $('#p_del').onclick=async()=>{if(!confirm('Hapus foto QRIS?'))return;
  const d=await post('/api/admin/payment',{dana:$('#p_dana').value.trim(),dana_name:$('#p_name').value.trim(),remove_qris:true});
  say($('#p_msg'),d.status,d.status?'Foto QRIS dihapus.':errOf(d));newQris='';$('#p_qris').value='';loadPay()};
 
-/* ---------- Tutorial transfer ---------- */
+/* ---------- Tutorial unggah bukti transfer ---------- */
 let newTut='';
+async function tutImg(f){let m=1200,q=.85,u;for(let i=0;i<5;i++){u=await img2url(f,m,q);if(u.length<=600000)return u;m=Math.round(m*.8);q=Math.max(.5,q-.08)}return u}
 function showTut(u){const b=$('#t_prev');b.textContent='';if(!u)return;
  const i=document.createElement('img');i.src=u;i.alt='Tutorial transfer';i.style.cssText='max-width:100%;border-radius:12px;background:#fff';b.append(i)}
 async function loadTut(){const d=await api('/api/admin/tutorial');if(!d.status)return;
  $('#t_text').value=d.text||'';showTut(d.img);$('#t_del').classList.toggle('hide',!d.img)}
 $('#t_img').onchange=async e=>{const f=e.target.files[0];if(!f)return;
- try{newTut=await img2url(f,1200,.85);showTut(newTut);say($('#t_msg'),true,'Foto dipilih. Tap Simpan tutorial.')}catch(x){newTut='';say($('#t_msg'),false,x.message)}};
+ try{newTut=await tutImg(f);showTut(newTut);say($('#t_msg'),true,'Foto dipilih. Tap Simpan tutorial.')}catch(x){newTut='';say($('#t_msg'),false,x.message)}};
 $('#tutf').onsubmit=async e=>{e.preventDefault();
  const b={text:$('#t_text').value.trim()};if(newTut)b.img=newTut;
- const d=await post('/api/admin/tutorial',b);say($('#t_msg'),d.status,d.status?'Tutorial tersimpan.':errOf(d));
+ const d=await post('/api/admin/tutorial',b);say($('#t_msg'),d.status,d.status?'Tutorial tersimpan. Pratinjau di bawah adalah yang tampil ke pembeli.':errOf(d));
  if(d.status){newTut='';$('#t_img').value='';loadTut()}};
 $('#t_del').onclick=async()=>{if(!confirm('Hapus foto tutorial?'))return;
  const d=await post('/api/admin/tutorial',{remove_img:true});

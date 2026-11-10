@@ -74,7 +74,6 @@ module.exports = {
 <div id="dv_list">
 <section class="box"><h2>Cara deposit</h2>
 <ol class="steps"><li><b>1</b><span>Ajukan deposit</span></li><li><b>2</b><span>Pilih metode pembayaran</span></li><li><b>3</b><span>Upload bukti tf</span></li></ol></section>
-<section class="box hide" id="tut"><h2>Tutorial transfer</h2><div id="tut_img"></div><p id="tut_t" style="margin-top:8px;white-space:pre-line"></p></section>
 <form class="box" id="df" autocomplete="off"><h2>Ajukan deposit</h2>
 <label for="d_amt">Jumlah deposit (Rp)</label><input id="d_amt" inputmode="numeric" placeholder="Minimal 1000">
 <div class="err" id="dmsg" role="status"></div><button type="submit" id="dgo" style="width:100%">Ajukan deposit</button></form>
@@ -86,6 +85,11 @@ module.exports = {
 <label>Pilih metode pembayaran</label><div class="methods" id="methods"></div><div id="pay"></div></section>
 <form class="box" id="pf" autocomplete="off"><h2>Upload bukti transfer</h2>
 <div class="due"><span class="muted">Jumlah yang harus dibayar</span><b id="dpay_amt"></b></div>
+<div id="tut" class="hide" style="margin-top:12px;padding:12px 14px;border:1px solid var(--line);border-radius:14px;background:var(--field)">
+<b style="display:block;font-size:.92rem">Cara unggah bukti transfer</b>
+<button type="button" class="qris hide" id="tut_btn" aria-label="Perbesar foto tutorial" style="max-width:340px;margin:10px auto 0"></button>
+<p class="muted qris-hint hide" id="tut_hint">Ketuk foto untuk memperbesar</p>
+<p id="tut_t" class="hide" style="margin-top:10px;font-size:.9rem;white-space:pre-line"></p></div>
 <label class="drop"><input id="d_proof" type="file" accept="image/*"><span id="d_fn">Pilih foto bukti transfer</span></label>
 <div class="err" id="pmsg" role="status"></div><button type="submit" id="pgo" style="width:100%">Kirim bukti transfer</button></form>
 </div>
@@ -133,7 +137,7 @@ $('#bout').onclick=async()=>{try{await post('/api/buyer/logout')}catch{}location
 /* ---------- Tab & Deposit ---------- */
 function tab(t){document.querySelectorAll('#app [data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));
  document.querySelectorAll('#mtabs .tab').forEach(b=>b.setAttribute('aria-selected',String(b.dataset.t===t)));
- if(t==='dp'){dview('list');loadDeposits();loadTutor();refreshBal()}
+ if(t==='dp'){dview('list');loadDeposits();refreshBal()}
  if(t==='rw')loadOrders();if(t==='pf')$('#pf_user_v').value=$('#uname').textContent}
 document.querySelectorAll('#mtabs .tab').forEach(b=>b.onclick=()=>tab(b.dataset.t));
 async function refreshBal(){try{const r=await fetch('/api/buyer/me');const d=await r.json();if(d.status)$('#ubal').textContent='Saldo '+rp(d.balance)}catch{}}
@@ -157,7 +161,7 @@ function openQris(u){
 let curDep=null,payInfo=null,method=null;
 function dview(v){$('#dv_list').classList.toggle('hide',v!=='list');$('#dv_pay').classList.toggle('hide',v!=='pay');window.scrollTo(0,0)}
 async function openPay(dep){curDep=dep;method=null;$('#dpay_amt').textContent=rp(dep.amount);
- $('#pmsg').textContent='';$('#d_proof').value='';$('#d_fn').textContent='Pilih foto bukti transfer';$('#pay').textContent='';dview('pay');
+ $('#pmsg').textContent='';$('#d_proof').value='';$('#d_fn').textContent='Pilih foto bukti transfer';$('#pay').textContent='';dview('pay');loadTutor();
  const mb=$('#methods');mb.textContent='Memuat…';
  try{const r=await fetch('/api/buyer/payment');const d=await r.json();payInfo=d;mb.textContent='';
   const ms=[];const off=-new Date().getTimezoneOffset(),outWib=off!==420,zn=off===480?'WITA':off===540?'WIT':'luar WIB';
@@ -181,11 +185,25 @@ function renderPay(){const box=$('#pay');box.textContent='';const d=payInfo||{};
   c.onclick=async()=>{try{await navigator.clipboard.writeText(d.dana.replace(/[^0-9+]/g,''));c.textContent='Tersalin'}catch{c.textContent='Salin manual'}};
   dn.append(p,n,c);box.append(dn)}}
 const DST={pending:['Menunggu persetujuan',''],approved:['Disetujui','var(--accent)'],rejected:['Ditolak','var(--danger)']};
-async function loadTutor(){const s=$('#tut');
- try{const r=await fetch('/api/buyer/tutorial');if(!r.ok)return;const d=await r.json();
-  const im=$('#tut_img');im.textContent='';$('#tut_t').textContent=d.text||'';
-  if(d.img){const i=document.createElement('img');i.src=d.img;i.alt='Tutorial transfer';i.style.cssText='display:block;width:100%;max-width:420px;height:auto;margin:10px auto 0;border-radius:12px;background:#fff';im.append(i)}
-  s.classList.toggle('hide',!(d.text||d.img))}catch{}}
+let tutC=null,tutAt=0;
+function openTut(u){
+ const ov=document.createElement('div');ov.className='lb';ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');ov.setAttribute('aria-label','Tutorial unggah bukti transfer');
+ const card=document.createElement('div');card.className='lb-card';
+ const i=document.createElement('img');i.src=u;i.alt='Tutorial unggah bukti transfer';i.style.maxHeight='78vh';
+ const act=document.createElement('div');act.className='lb-act';
+ const cl=document.createElement('button');cl.type='button';cl.className='ghost';cl.textContent='Tutup';
+ const key=e=>{if(e.key==='Escape')close()};
+ function close(){ov.remove();document.body.style.overflow='';document.removeEventListener('keydown',key)}
+ cl.onclick=close;ov.onclick=e=>{if(e.target===ov)close()};document.addEventListener('keydown',key);
+ act.append(cl);card.append(i,act);ov.append(card);document.body.append(ov);document.body.style.overflow='hidden';cl.focus()}
+function drawTutor(d){const btn=$('#tut_btn');btn.textContent='';btn.onclick=null;
+ const has=!!d.img;btn.classList.toggle('hide',!has);$('#tut_hint').classList.toggle('hide',!has);
+ if(has){const i=document.createElement('img');i.src=d.img;i.alt='Tutorial unggah bukti transfer';i.style.cssText='display:block;width:100%;max-height:260px;object-fit:contain';btn.append(i);btn.onclick=()=>openTut(d.img)}
+ $('#tut_t').textContent=d.text||'';$('#tut_t').classList.toggle('hide',!d.text);
+ $('#tut').classList.toggle('hide',!(d.text||d.img))}
+async function loadTutor(){
+ if(tutC&&Date.now()-tutAt<60000){drawTutor(tutC);return}
+ try{const r=await fetch('/api/buyer/tutorial');if(!r.ok)return;const d=await r.json();if(!d.status)return;tutC=d;tutAt=Date.now();drawTutor(d)}catch{}}
 async function loadDeposits(){const box=$('#dlist');
  try{const r=await fetch('/api/buyer/deposits');if(!r.ok)return;const d=await r.json();box.textContent='';
   if(!d.data||!d.data.length){box.textContent='Belum ada deposit.';return}

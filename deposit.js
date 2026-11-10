@@ -89,7 +89,7 @@ module.exports = function mountDeposit(app, d) {
     const [i] = await rest('settings', '?select=value&key=eq.pay_tutor_img');
     return { text: s.pay_tutor_text || '', img: (i && i.value) || '' };
   }
-  app.get('/api/buyer/tutorial', buyerOnly, run(async () => ({ status: true, ...(await tutorial()) })));
+  app.get('/api/buyer/tutorial', buyerOnly, (req, res, next) => { res.setHeader('Cache-Control', 'no-store'); next(); }, run(async () => ({ status: true, ...(await tutorial()) })));
   app.get('/api/admin/tutorial', adminOnly, run(async () => ({ status: true, ...(await tutorial()) })));
   app.post('/api/admin/tutorial', adminOnly, run(async (req, res) => {
     const b = req.body || {};
