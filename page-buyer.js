@@ -35,7 +35,7 @@ module.exports = {
 <section class="box flt"><label class="stp"><span class="step">1</span>Platform</label><div class="chips" id="plats"></div>
 <label class="stp" for="cat"><span class="step">2</span>Kategori</label><select id="cat" disabled></select></section>
 
-<section class="box svbox"><div class="top"><h2><span class="step">3</span>Layanan</h2><button class="ghost" id="goords" type="button">Cek Pesanan</button></div><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
+<section class="box svbox"><div class="top"><h2><span class="step">3</span>Layanan</h2><button class="ghost" id="goords" type="button">Cek Pesanan</button></div><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><input id="sq" type="search" placeholder="Cari layanan…" autocomplete="off" aria-label="Cari layanan"><div id="svs"></div></section>
 
 <div class="sheet-ov hide" id="bov"></div>
 <form class="box hide" id="bf" autocomplete="off"><div class="sheet-grab"></div>
@@ -253,20 +253,33 @@ function showPlats(){const cnt={};SV.forEach(x=>{const p=plat(x.category);cnt[p]
  if(names.length)pickPlat(names[0])}
 function pickPlat(p){document.querySelectorAll('.chip').forEach(c=>c.setAttribute('aria-pressed',String(c.textContent===p)));
  const cats=[...new Set(SV.filter(x=>plat(x.category)===p).map(x=>x.category))];
- const s=$('#cat');s.textContent='';cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.append(o)});s.disabled=false;showSvs()}
+ const s=$('#cat');s.textContent='';cats.forEach(c=>{const o=document.createElement('option');o.value=c;o.textContent=c;s.append(o)});s.disabled=false;$('#sq').value='';showSvs()}
 function svcCard(x){const b=document.createElement('div');b.className='svc';b.tabIndex=0;b.setAttribute('role','button');b.setAttribute('aria-pressed','false');
   const mk=(tag,cls,txt)=>{const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e};
-  b.append(mk('span','sv-min','Min '+Number(x.min).toLocaleString('id-ID')),mk('b','',x.name),
-   mk('span','sv-chip','Maks '+Number(x.max).toLocaleString('id-ID')),mk('span','sv-price',rp100(x.price)+' / 100'),mk('span','sv-btn','Pesan Sekarang'));
+  const pr=mk('span','sv-price',rp100(x.price));pr.append(mk('small','',' / 100'));
+  const mt=mk('div','sv-meta');mt.append(mk('span','sv-min','Min '+Number(x.min).toLocaleString('id-ID')),mk('span','sv-chip','Maks '+Number(x.max).toLocaleString('id-ID')));
+  b.title=x.name;b.append(mk('b','',x.name),pr,mt,mk('span','sv-btn','Pesan Sekarang'));
   const go=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};
   b.onclick=go;b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};return b}
 function showRec(ids){const box=$('#reclist');box.textContent='';
  const list=ids.map(i=>SV.find(x=>x.id===i)).filter(Boolean);
  $('#recbox').classList.toggle('hide',!list.length);
  list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)})}
-function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');$('#bov').classList.add('hide');document.body.classList.remove('lock');
- const list=SV.filter(x=>x.category===c).sort((a,b)=>(Number(a.price)||1e18)-(Number(b.price)||1e18));$('#cmsg').textContent=list.length+' layanan';
- list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)})}
+let svList=[],svN=0,svIO=null;
+function moreSvs(){const box=$('#svs');const old=box.querySelector('.sv-more');if(old)old.remove();
+ const f=document.createDocumentFragment(),end=Math.min(svN+36,svList.length);
+ for(let i=svN;i<end;i++){const c=svcCard(svList[i]);c.style.setProperty('--i',Math.min(i-svN,12));f.append(c)}
+ svN=end;box.append(f);
+ if(svN<svList.length){const m=el('div','sv-more');box.append(m);
+  if('IntersectionObserver' in window){if(svIO)svIO.disconnect();svIO=new IntersectionObserver(es=>{if(es[0].isIntersecting)moreSvs()},{rootMargin:'700px'});svIO.observe(m)}
+  else moreSvs()}}
+function showSvs(){const c=$('#cat').value,q=($('#sq').value||'').trim().toLowerCase();const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');$('#bov').classList.add('hide');document.body.classList.remove('lock');
+ if(svIO){svIO.disconnect();svIO=null}
+ const all=SV.filter(x=>x.category===c).sort((a,b)=>(Number(a.price)||1e18)-(Number(b.price)||1e18));
+ svList=q?all.filter(x=>(x.name+' '+x.id).toLowerCase().indexOf(q)>-1):all;svN=0;
+ $('#cmsg').textContent=q?svList.length+' dari '+all.length+' layanan':all.length+' layanan';
+ if(!svList.length){box.append(el('p','muted sv-empty',q?'Tidak ada layanan yang cocok.':'Belum ada layanan.'));return}
+ moreSvs()}
 
 function choose(x){sel=x;$('#bf').classList.remove('hide');$('#bname').textContent=x.name;$('#binfo').textContent='Jumlah '+x.min+' sampai '+x.max;
  $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();$('#bov').classList.remove('hide');document.body.classList.add('lock')}
@@ -278,7 +291,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#bf').classList
 const SL={pending:'Pending',processing:'Diproses',success:'Sukses',partial:'Sebagian',error:'Error'};
 function calc(){if(!sel)return;const q=Number($('#b_qty').value)||0;tot=Math.ceil(q*sel.price/1000);$('#total').textContent=rp(tot);
  note($('#bmsg'),'',(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':'')}
-$('#cat').onchange=showSvs;$('#b_qty').oninput=calc;
+$('#cat').onchange=()=>{$('#sq').value='';showSvs()};$('#b_qty').oninput=calc;let sqT=0;$('#sq').oninput=()=>{clearTimeout(sqT);sqT=setTimeout(showSvs,180)};
 async function loadCatalog(){loaded=true;$('#cmsg').textContent='Memuat layanan…';
  try{const r=await fetch('/api/catalog');if(r.status===401){loaded=false;setMe(null);return}
   const d=await r.json();SV=d.data||[];
