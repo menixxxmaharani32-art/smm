@@ -31,6 +31,7 @@ module.exports = {
 <button class="tab" type="button" data-t="pf" aria-selected="false">Profil</button></nav>
 
 <div data-p="sv">
+<div class="seg hide" id="svseg"><button type="button" data-v="rec">Rekomendasi</button><button type="button" class="on" data-v="sv">Layanan</button></div>
 <section class="box hide" id="recbox"><h2>Rekomendasi <span class="badge">Pilihan admin</span></h2><div id="reclist"></div></section>
 <section class="box flt"><label class="stp"><span class="step">1</span>Platform</label><div class="chips" id="plats"></div>
 <label class="stp" for="cat"><span class="step">2</span>Kategori</label><select id="cat" disabled></select></section>
@@ -261,10 +262,15 @@ function svcCard(x){const b=document.createElement('div');b.className='svc';b.ta
   b.title=x.name;b.append(mk('b','',x.name),pr,mt,mk('span','sv-btn','Pesan Sekarang'));
   const go=()=>{document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'));b.setAttribute('aria-pressed','true');choose(x)};
   b.onclick=go;b.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();go()}};return b}
+let hasRec=false;
+function svview(v){if(!hasRec)v='sv';$('#svseg').classList.toggle('hide',!hasRec);$('#recbox').classList.toggle('hide',v!=='rec');
+ document.querySelectorAll('.flt,.svbox').forEach(e=>e.classList.toggle('hide',v==='rec'));
+ document.querySelectorAll('#svseg button').forEach(b=>b.classList.toggle('on',b.dataset.v===v))}
+document.querySelectorAll('#svseg button').forEach(b=>b.onclick=()=>svview(b.dataset.v));
 function showRec(ids){const box=$('#reclist');box.textContent='';
  const list=ids.map(i=>SV.find(x=>x.id===i)).filter(Boolean);
- $('#recbox').classList.toggle('hide',!list.length);
- list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)})}
+ hasRec=list.length>0;
+ list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)});svview('sv')}
 let svList=[],svN=0,svIO=null;
 function moreSvs(){const box=$('#svs');const old=box.querySelector('.sv-more');if(old)old.remove();
  const f=document.createDocumentFragment(),end=Math.min(svN+36,svList.length);

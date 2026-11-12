@@ -556,3 +556,11 @@ label.stp~label.stp{margin-top:12px}
   [data-p=sv] #reclist{grid-template-columns:repeat(auto-fill,minmax(196px,1fr));gap:12px}
 }
 @media(prefers-reduced-motion:reduce){body::after,html::after,.logo::after,#who::before,.hero::before{animation:none!important}}
+
+/* pilihan tampilan: Rekomendasi | Layanan */
+#svseg{margin:0 0 2px}
+#svseg button{font-size:.9rem}
+@media(min-width:900px){
+  [data-p=sv]:not(.hide){grid-template-areas:"seg seg" "rec rec" "flt svc"}
+  #svseg{grid-area:seg;max-width:360px}
+}
