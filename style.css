@@ -565,12 +565,10 @@ label.stp~label.stp{margin-top:12px}
   #svseg{grid-area:seg;max-width:360px}
 }
 
-/* tombol Rekomendasi | Layanan: lebih besar, aktif jelas, terasa saat ditekan */
-#svseg{gap:6px;padding:5px;border-radius:16px;border:1px solid var(--line2);box-shadow:var(--shadow-sm)}
-#svseg button{min-height:46px;border-radius:12px;font-size:.95rem;font-weight:800;color:var(--muted);
-  transition:transform .15s cubic-bezier(.2,.7,.2,1),background-color .2s,color .2s,box-shadow .2s}
-#svseg button:active{transform:scale(.95)}
-#svseg button.on{background:linear-gradient(135deg,var(--btn1),var(--btn2));color:var(--on-btn);box-shadow:0 10px 20px -10px var(--btn1);animation:segPop .26s cubic-bezier(.2,.8,.2,1)}
-#svseg button.on:hover{background:linear-gradient(135deg,var(--btn1),var(--btn2));color:var(--on-btn)}
-@keyframes segPop{0%{transform:scale(.94)}60%{transform:scale(1.04)}100%{transform:none}}
-@media(min-width:900px){#svseg{max-width:420px}}
+/* tombol Rekomendasi | Layanan: kecil & rapi, aktif ditandai cahaya (tanpa isi warna) */
+#svseg{gap:4px;padding:4px;border-radius:14px;border:1px solid var(--line);box-shadow:none}
+#svseg button{min-height:36px;border-radius:10px;font-size:.86rem;font-weight:700;color:var(--muted);background:transparent;box-shadow:none;
+  transition:transform .15s cubic-bezier(.2,.7,.2,1),color .2s,background-color .2s,box-shadow .3s}
+#svseg button:active{transform:scale(.97)}
+#svseg button.on,#svseg button.on:hover{background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 16px -3px var(--accent)}
+@media(min-width:900px){#svseg{max-width:300px}}
