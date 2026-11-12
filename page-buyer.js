@@ -266,11 +266,11 @@ let hasRec=false;
 function svview(v){if(!hasRec)v='sv';$('#svseg').classList.toggle('hide',!hasRec);$('#recbox').classList.toggle('hide',v!=='rec');
  document.querySelectorAll('.flt,.svbox').forEach(e=>e.classList.toggle('hide',v==='rec'));
  document.querySelectorAll('#svseg button').forEach(b=>b.classList.toggle('on',b.dataset.v===v))}
-document.querySelectorAll('#svseg button').forEach(b=>b.onclick=()=>svview(b.dataset.v));
+document.querySelectorAll('#svseg button').forEach(b=>b.onclick=()=>{try{if(navigator.vibrate)navigator.vibrate(8)}catch(e){}svview(b.dataset.v)});
 function showRec(ids){const box=$('#reclist');box.textContent='';
  const list=ids.map(i=>SV.find(x=>x.id===i)).filter(Boolean);
  hasRec=list.length>0;
- list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)});svview('sv')}
+ list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)});svview('rec')}
 let svList=[],svN=0,svIO=null;
 function moreSvs(){const box=$('#svs');const old=box.querySelector('.sv-more');if(old)old.remove();
  const f=document.createDocumentFragment(),end=Math.min(svN+36,svList.length);
