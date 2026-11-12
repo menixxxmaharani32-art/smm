@@ -572,3 +572,7 @@ label.stp~label.stp{margin-top:12px}
 #svseg button:active{transform:scale(.97)}
 #svseg button.on,#svseg button.on:hover{background:var(--accent-soft);color:var(--accent);box-shadow:0 0 0 1px var(--accent),0 0 16px -3px var(--accent)}
 @media(min-width:900px){#svseg{max-width:300px}}
+
+/* performa: tanpa blur di bilah tab (blur + latar bergerak = lag), dasbor admin tanpa animasi latar */
+.tabs{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}
+body:has(.adm-top)::after,html:has(.adm-top)::after,body:has(.adm-top) .hero::before{display:none;animation:none}

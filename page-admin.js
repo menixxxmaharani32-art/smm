@@ -121,6 +121,9 @@ const errOf=d=>typeof d.data==='string'?d.data:(d.error||'Terjadi kesalahan.');
 const when=s=>new Date(s).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'});
 const say=(el,ok,t)=>{el.style.color=ok?'var(--accent)':'';el.textContent=t};
 const btn=(t,cls,fn)=>{const b=document.createElement('button');b.type='button';b.className=cls||'';b.textContent=t;b.onclick=fn;return b};
+function fill(box,arr,mk,n){n=n||40;let i=0;const more=btn('','ghost',()=>step());more.style.cssText='width:100%;margin-top:10px';
+ function step(){const f=document.createDocumentFragment();arr.slice(i,i+n).forEach(x=>f.append(mk(x)));i+=n;box.insertBefore(f,more);if(i>=arr.length)more.remove();else more.textContent='Tampilkan lebih banyak ('+(arr.length-i)+')'}
+ box.append(more);step()}
 window.addEventListener('pageshow',e=>{if(e.persisted)location.reload()});
 
 let ofil='all',otm=null;
@@ -130,7 +133,7 @@ async function loadOrd(){const box=$('#o_list');
  try{const d=await api('/api/admin/orders?status='+ofil+'&q='+encodeURIComponent($('#o_q').value.trim()));box.textContent='';
   if(!d.status){box.textContent=errOf(d);return}
   if(!d.data.length){box.textContent='Belum ada pesanan.';return}
-  d.data.forEach(o=>{const r=document.createElement('div');r.className='orow';
+  fill(box,d.data,o=>{const r=document.createElement('div');r.className='orow';
    const h=document.createElement('div');h.className='ohd';const n=document.createElement('b');n.textContent=o.service_name||'Pesanan #'+o.id;
    const g=OG[o.grp]||[o.grp,''];const s=document.createElement('span');s.className='pill '+g[1];s.textContent=g[0];h.append(n,s);
    const m=document.createElement('p');m.className='muted';m.textContent=o.username+(o.created_at?' · '+new Date(o.created_at).toLocaleString('id-ID',{dateStyle:'medium',timeStyle:'short'}):'');
@@ -138,7 +141,7 @@ async function loadOrd(){const box=$('#o_list');
    const v=document.createElement('p');v.className='ov';v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
    r.append(h,m,t,v);
    if(o.grp==='queued'){const q=document.createElement('p');q.className='muted';q.textContent='Menunggu saldo Sprint Pedia, diproses otomatis setelah saldo terisi.';r.append(q)}
-   box.append(r)})}catch{}}
+   return r})}catch{}}
 document.querySelectorAll('#o_f .chip').forEach(b=>b.onclick=()=>{ofil=b.dataset.s;document.querySelectorAll('#o_f .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));loadOrd()});
 $('#o_q').addEventListener('input',()=>{clearTimeout(otm);otm=setTimeout(loadOrd,350)});
 function tab(t){document.querySelectorAll('[data-p]').forEach(e=>e.classList.toggle('hide',e.dataset.p!==t));
@@ -246,12 +249,12 @@ async function loadDeposits(){
 async function loadUsers(){const d=await api('/api/admin/users?q='+encodeURIComponent($('#uq').value.trim()));const box=$('#ulist');box.textContent='';
  if(!d.status){box.textContent=errOf(d);return}
  if(!d.data.length){box.textContent='Belum ada pembeli.';return}
- d.data.forEach(u=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)';
+ fill(box,d.data,u=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;border-top:1px solid var(--line)';
   const it=item(u.username,'Saldo '+rp(u.balance),()=>{$('#t_user').value=u.username;$('#t_amt').focus()});it.style.cssText='flex:1;min-width:0;border-top:0';
   const del=document.createElement('button');del.type='button';del.className='ghost';del.textContent='Hapus';del.style.cssText='width:auto;padding:8px 12px;color:var(--danger);border-color:var(--danger)';
   del.onclick=async()=>{if(!confirm('Hapus pembeli '+u.username+'? Saldo, riwayat pesanan, dan riwayat deposit pembeli ini ikut terhapus. Tidak bisa dibatalkan.'))return;
    del.disabled=true;try{const d=await post('/api/admin/users/delete',{username:u.username});if(d.status)loadUsers();else{alert(errOf(d));del.disabled=false}}catch{del.disabled=false}};
-  row.append(it,del);box.append(row)})}
+  row.append(it,del);return row})}
 let tm;$('#uq').oninput=()=>{clearTimeout(tm);tm=setTimeout(loadUsers,300)};
 $('#tform').onsubmit=async e=>{e.preventDefault();
  const d=await post('/api/admin/topup',{username:$('#t_user').value.trim(),amount:$('#t_amt').value.trim()});
@@ -347,7 +350,7 @@ $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}ca
 async function loadAn(){try{const d=await api('/api/admin/announce');if(d.status)$('#an_t').value=d.text||''}catch{}}
 $('#anf').onsubmit=async e=>{e.preventDefault();const d=await post('/api/admin/announce',{text:$('#an_t').value});
  say($('#an_msg'),d.status,d.status?(d.text?'Pemberitahuan tersimpan.':'Pemberitahuan dikosongkan (disembunyikan).'):errOf(d))};
-init();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();syncAll();loadRevenue();
+init();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();loadRevenue();setTimeout(syncAll,2500);
 /* ---------- Notifikasi push (seperti alzDev) ---------- */
 const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 let pushOn=false,lastEv=0;
@@ -383,7 +386,7 @@ async function pollEvents(){try{const d=await api('/api/admin/push/events?since=
  if(!ev.length)return;lastEv=ev[ev.length-1].id;
  if(ev.some(e=>e.type==='deposit'))loadDeposits();loadRevenue();
  if(!pushOn&&'Notification' in window&&Notification.permission==='granted')ev.forEach(e=>{try{new Notification(e.title,{body:e.body,tag:'alzz-'+e.id})}catch{}})}catch{}}
-initPush();pollEvents();setInterval(pollEvents,25000);
+initPush();pollEvents();setInterval(()=>{if(!document.hidden)pollEvents()},25000);
 // Bagian Pengaturan & Pembayaran bisa dilipat; hanya yang pertama terbuka agar tidak panjang
 document.querySelectorAll('[data-p="set"]>.box,[data-p="pay"]>.box').forEach((b,i)=>{const h=b.querySelector(':scope>h2');if(!h)return;b.classList.add('fold');if(i>0)b.classList.add('closed');h.onclick=()=>b.classList.toggle('closed')});
 
