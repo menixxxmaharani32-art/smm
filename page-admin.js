@@ -2,7 +2,7 @@
 module.exports = {
   title: 'Dasbor admin',
   body: `
-<div class="top"><h1>Dasbor admin</h1><div style="display:flex;gap:8px"><button class="ghost" id="bell" type="button" aria-label="Notifikasi HP">Notifikasi</button><button class="ghost" id="logout" type="button">Keluar</button></div></div>
+<div class="top adm-top"><div class="brand"><span class="logo">A</span><h1 style="margin:0;font-size:1.15rem">Dasbor admin</h1></div><div style="display:flex;align-items:center;gap:8px"><button type="button" class="theme-btn" id="themeBtn" aria-label="Ganti tema" title="Ganti tema"><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button><button class="ghost" id="bell" type="button" aria-label="Notifikasi HP">Notifikasi</button><button class="ghost" id="logout" type="button">Keluar</button></div></div>
 <nav class="tabs">
 <button class="tab" type="button" data-t="home" aria-selected="true">Pendapatan</button>
 <button class="tab" type="button" data-t="ord" aria-selected="false">Pesanan</button>
@@ -103,6 +103,15 @@ module.exports = {
 <p class="muted" style="margin-top:6px">Impor daftar layanan dari Sprint Pedia agar tampil di halaman pembeli.</p>
 <button type="button" id="loadsv">Impor semua layanan</button><div class="err" id="svmsg" role="status"></div></section></div>`,
   script: `
+/* ---------- Tema terang / gelap (disimpan di perangkat) ---------- */
+(function(){const R=document.documentElement,K='ap-theme';
+ const sys=()=>matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
+ const get=()=>{try{return localStorage.getItem(K)}catch(e){return null}};
+ const b=document.getElementById('themeBtn');
+ const apply=t=>{R.setAttribute('data-theme',t);if(b){const l=t==='light'?'Ganti ke mode gelap':'Ganti ke mode terang';b.setAttribute('aria-label',l);b.title=l}};
+ apply(get()||sys());
+ if(b)b.onclick=()=>{const n=R.getAttribute('data-theme')==='light'?'dark':'light';R.classList.add('theme-anim');apply(n);try{localStorage.setItem(K,n)}catch(e){}setTimeout(()=>R.classList.remove('theme-anim'),450)};
+})();
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
 const rp100=n=>'Rp '+Math.ceil((Number(n)||0)/10).toLocaleString('id-ID',{maximumFractionDigits:0}); // harga per 100, tanpa koma

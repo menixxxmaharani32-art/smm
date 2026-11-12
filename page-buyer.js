@@ -2,7 +2,7 @@
 module.exports = {
   title: 'Alzz Pedia',
   body: `
-<div class="brand"><span class="logo">A</span><span>Alzz Pedia</span></div>
+<header class="topbar"><div class="brand"><span class="logo">A</span><span>Alzz Pedia</span></div><button type="button" class="theme-btn" id="themeBtn" aria-label="Ganti tema" title="Ganti tema"><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></header>
 <h1 id="ttl">Masuk</h1>
 <p class="muted" id="sub"></p>
 
@@ -32,15 +32,18 @@ module.exports = {
 
 <div data-p="sv">
 <section class="box hide" id="recbox"><h2>Rekomendasi <span class="badge">Pilihan admin</span></h2><div id="reclist"></div></section>
-<section class="box"><label style="margin-top:0">Platform</label><div class="chips" id="plats"></div>
-<label for="cat">Kategori</label><select id="cat" disabled></select></section>
+<section class="box flt"><label class="stp"><span class="step">1</span>Platform</label><div class="chips" id="plats"></div>
+<label class="stp" for="cat"><span class="step">2</span>Kategori</label><select id="cat" disabled></select></section>
 
-<section class="box"><div class="top"><h2>Layanan</h2><button class="ghost" id="goords" type="button">Cek Pesanan</button></div><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
+<section class="box svbox"><div class="top"><h2><span class="step">3</span>Layanan</h2><button class="ghost" id="goords" type="button">Cek Pesanan</button></div><p class="muted" id="cmsg" style="margin-top:6px">Memuat layanan…</p><div id="svs"></div></section>
 
-<form class="box hide" id="bf" autocomplete="off"><h2 id="bname"></h2><p class="muted" id="binfo" style="margin-top:6px"></p>
+<div class="sheet-ov hide" id="bov"></div>
+<form class="box hide" id="bf" autocomplete="off"><div class="sheet-grab"></div>
+<div class="top"><div><p class="lbl">Pesan layanan</p><h2 id="bname"></h2></div><button type="button" class="ghost icon-btn" id="bclose" aria-label="Tutup"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></div>
+<p class="muted" id="binfo"></p>
 <label for="b_link">Link target</label><input id="b_link" inputmode="url" autocapitalize="none" placeholder="https://"><p class="note-warn">Akun target tidak boleh diprivat. Pesanan pada akun privat bisa gagal.</p>
 <label for="b_qty">Jumlah</label><input id="b_qty" inputmode="numeric">
-<p class="muted" style="margin-top:18px">Total bayar</p><div class="total" id="total">Rp 0</div>
+<div class="total-row"><span class="muted">Total bayar</span><div class="total" id="total">Rp 0</div></div>
 <div class="err" id="bmsg" role="status"></div><button type="submit" id="bgo" style="width:100%">Pesan</button></form>
 
 </div>
@@ -97,6 +100,15 @@ module.exports = {
 </div>
 <p class="help hide" id="help">Butuh bantuan? <a id="help_a" href="#" target="_blank" rel="noopener">Chat Alzz Pedia</a></p>`,
   script: `
+/* ---------- Tema terang / gelap (disimpan di perangkat) ---------- */
+(function(){const R=document.documentElement,K='ap-theme';
+ const sys=()=>matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
+ const get=()=>{try{return localStorage.getItem(K)}catch(e){return null}};
+ const b=document.getElementById('themeBtn');
+ const apply=t=>{R.setAttribute('data-theme',t);if(b){const l=t==='light'?'Ganti ke mode gelap':'Ganti ke mode terang';b.setAttribute('aria-label',l);b.title=l}};
+ apply(get()||sys());
+ if(b)b.onclick=()=>{const n=R.getAttribute('data-theme')==='light'?'dark':'light';R.classList.add('theme-anim');apply(n);try{localStorage.setItem(K,n)}catch(e){}setTimeout(()=>R.classList.remove('theme-anim'),450)};
+})();
 const $=s=>document.querySelector(s);
 const rp=n=>'Rp '+Math.round(Number(n)||0).toLocaleString('id-ID',{maximumFractionDigits:0});
 const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=null)e.textContent=x;return e};
@@ -251,13 +263,18 @@ function svcCard(x){const b=document.createElement('div');b.className='svc';b.ta
 function showRec(ids){const box=$('#reclist');box.textContent='';
  const list=ids.map(i=>SV.find(x=>x.id===i)).filter(Boolean);
  $('#recbox').classList.toggle('hide',!list.length);
- list.forEach(x=>box.append(svcCard(x)))}
-function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');
+ list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)})}
+function showSvs(){const c=$('#cat').value;const box=$('#svs');box.textContent='';sel=null;$('#bf').classList.add('hide');$('#bov').classList.add('hide');document.body.classList.remove('lock');
  const list=SV.filter(x=>x.category===c).sort((a,b)=>(Number(a.price)||1e18)-(Number(b.price)||1e18));$('#cmsg').textContent=list.length+' layanan';
- list.forEach(x=>box.append(svcCard(x)))}
+ list.forEach((x,i)=>{const c=svcCard(x);c.style.setProperty('--i',Math.min(i,14));box.append(c)})}
 
 function choose(x){sel=x;$('#bf').classList.remove('hide');$('#bname').textContent=x.name;$('#binfo').textContent='Jumlah '+x.min+' sampai '+x.max;
- $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();$('#bf').scrollIntoView({behavior:'smooth',block:'nearest'})}
+ $('#b_qty').value=x.min||'';$('#bmsg').textContent='';calc();$('#bov').classList.remove('hide');document.body.classList.add('lock')}
+function closeSheet(){$('#bf').classList.add('hide');$('#bov').classList.add('hide');document.body.classList.remove('lock');sel=null;
+ document.querySelectorAll('.svc').forEach(e=>e.setAttribute('aria-pressed','false'))}
+function toast(t){const o=document.querySelector('.toast');if(o)o.remove();const e=el('div','toast',t);e.setAttribute('role','status');document.body.append(e);setTimeout(()=>e.remove(),2600)}
+$('#bclose').onclick=closeSheet;$('#bov').onclick=closeSheet;
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('#bf').classList.contains('hide')&&!document.querySelector('.lb'))closeSheet()});
 const SL={pending:'Pending',processing:'Diproses',success:'Sukses',partial:'Sebagian',error:'Error'};
 function calc(){if(!sel)return;const q=Number($('#b_qty').value)||0;tot=Math.ceil(q*sel.price/1000);$('#total').textContent=rp(tot);
  note($('#bmsg'),'',(q&&(q<sel.min||(sel.max&&q>sel.max)))?'Jumlah harus antara '+sel.min+' dan '+sel.max+'.':'')}
@@ -276,7 +293,7 @@ $('#bf').onsubmit=async e=>{e.preventDefault();
  if(!confirm('Pesan '+q+' untuk '+rp(tot)+'? Saldo Anda akan terpotong.'))return;
  note($('#bmsg'),'info','Memproses…');
  try{const d=await post('/api/buyer/order',{service:sel.id,target:$('#b_link').value.trim(),quantity:q});
-  if(d.status){note($('#bmsg'),'ok',d.queued?'Pesanan diterima dengan status Pending. Akan diproses otomatis.':'Pesanan berhasil dibuat.');$('#b_link').value='';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders()}
+  if(d.status){note($('#bmsg'),'ok',d.queued?'Pesanan diterima dengan status Pending. Akan diproses otomatis.':'Pesanan berhasil dibuat.');$('#b_link').value='';$('#ubal').textContent='Saldo '+rp(d.balance);loadOrders();toast(d.queued?'Pesanan diterima, status Pending':'Pesanan berhasil dibuat');setTimeout(closeSheet,700)}
   else note($('#bmsg'),'',d.error||'Gagal memesan.')}
  catch{note($('#bmsg'),'','Tidak bisa terhubung ke server.')}};
 
