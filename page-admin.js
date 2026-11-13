@@ -260,7 +260,11 @@ async function loadUsers(){const d=await api('/api/admin/users?q='+encodeURIComp
   const del=document.createElement('button');del.type='button';del.className='ghost';del.textContent='Hapus';del.style.cssText='width:auto;padding:8px 12px;color:var(--danger);border-color:var(--danger)';
   del.onclick=async()=>{if(!confirm('Hapus pembeli '+u.username+'? Saldo, riwayat pesanan, dan riwayat deposit pembeli ini ikut terhapus. Tidak bisa dibatalkan.'))return;
    del.disabled=true;try{const d=await post('/api/admin/users/delete',{username:u.username});if(d.status)loadUsers();else{alert(errOf(d));del.disabled=false}}catch{del.disabled=false}};
-  row.append(it,del);return row})}
+  const rs=document.createElement('button');rs.type='button';rs.className='ghost';rs.textContent='Reset';rs.style.cssText='width:auto;padding:8px 12px';
+  rs.onclick=async()=>{if(!confirm('Reset password '+u.username+'? Password lama langsung tidak berlaku dan diganti password sementara yang baru.'))return;
+   rs.disabled=true;try{const d=await post('/api/admin/users/password',{username:u.username});
+    if(d.status)prompt('Password sementara untuk '+u.username+'. Salin lalu kirim ke pembeli (hanya tampil sekali):',d.password);else alert(errOf(d))}catch{}rs.disabled=false};
+  row.append(it,rs,del);return row})}
 let tm;$('#uq').oninput=()=>{clearTimeout(tm);tm=setTimeout(loadUsers,300)};
 $('#tform').onsubmit=async e=>{e.preventDefault();
  const d=await post('/api/admin/topup',{username:$('#t_user').value.trim(),amount:$('#t_amt').value.trim()});

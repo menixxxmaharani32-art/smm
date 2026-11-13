@@ -287,6 +287,21 @@ app.post('/api/admin/users/delete', adminOnly, run(async (req) => {
   return { status: true };
 }));
 
+// Reset password pembeli: admin membuat password sementara (acak), lalu mengirimnya ke pembeli.
+// Password lama tidak bisa dilihat (disimpan sebagai hash); pembeli bisa menggantinya sendiri lewat menu ganti password.
+app.post('/api/admin/users/password', adminOnly, run(async (req) => {
+  const username = String((req.body || {}).username || '').trim().toLowerCase();
+  if (!username) return { status: false, error: 'Username wajib diisi.' };
+  const [u] = await rest('users', '?select=id&username=eq.' + enc(username));
+  if (!u) return { status: false, error: 'Pembeli tidak ditemukan.' };
+  const abc = 'abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = crypto.randomBytes(10);
+  let pw = '';
+  for (let i = 0; i < 10; i++) pw += abc[bytes[i] % abc.length];
+  await rest('users', '?id=eq.' + enc(u.id), { method: 'PATCH', body: { password_hash: hashPw(pw) } });
+  return { status: true, password: pw };
+}));
+
 /* ================= API: publik & pembeli ================= */
 // Layanan rekomendasi: daftar id layanan (urut) disimpan di tabel settings, kunci "recommended"
 const recIds = (s) => { try { const a = JSON.parse(s.recommended || '[]'); return Array.isArray(a) ? a.map(String) : []; } catch (e) { return []; } };
