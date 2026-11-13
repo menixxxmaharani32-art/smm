@@ -2,7 +2,7 @@
 module.exports = {
   title: 'Dasbor admin',
   body: `
-<div class="top adm-top"><div class="brand"><span class="logo">A</span><h1 style="margin:0;font-size:1.15rem">Dasbor admin</h1></div><div style="display:flex;align-items:center;gap:8px"><button type="button" class="theme-btn" id="themeBtn" aria-label="Ganti tema" title="Ganti tema"><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button><button class="ghost" id="bell" type="button" aria-label="Notifikasi HP">Notifikasi</button><button class="ghost" id="logout" type="button">Keluar</button></div></div>
+<div class="top adm-top"><div class="brand"><span class="logo">A<img class="logo-img" src="/logo" alt="" onerror="this.remove()" onload="this.parentNode.classList.add('has-img')"></span><h1 style="margin:0;font-size:1.15rem">Dasbor admin</h1></div><div style="display:flex;align-items:center;gap:8px"><button type="button" class="theme-btn" id="themeBtn" aria-label="Ganti tema" title="Ganti tema"><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button><button class="ghost" id="bell" type="button" aria-label="Notifikasi HP">Notifikasi</button><button class="ghost" id="logout" type="button">Keluar</button></div></div>
 <nav class="tabs">
 <button class="tab" type="button" data-t="home" aria-selected="true">Pendapatan</button>
 <button class="tab" type="button" data-t="ord" aria-selected="false">Pesanan</button>
@@ -79,6 +79,12 @@ module.exports = {
 <div class="err" id="t_msg" role="status"></div><button type="submit" style="width:100%">Simpan tutorial</button></form></div>
 
 <div data-p="set" class="hide">
+<form class="box" id="logof" autocomplete="off"><h2>Logo / foto profil</h2>
+<p class="muted" style="margin-top:6px">Menggantikan huruf &ldquo;A&rdquo; di halaman masuk, halaman pembeli, dan dasbor ini.</p>
+<div id="lg_prev" style="margin-top:12px"></div>
+<label for="lg_img">Pilih foto</label><input id="lg_img" type="file" accept="image/*">
+<div class="err" id="lg_msg" role="status"></div>
+<div class="row"><button type="submit">Simpan logo</button><button type="button" class="ghost hide" id="lg_del">Hapus logo</button></div></form>
 <form class="box" id="anf" autocomplete="off"><h2>Pemberitahuan untuk pembeli</h2>
 <p class="muted" style="margin-top:6px">Tampil di bagian atas dasbor pembeli. Kosongkan lalu simpan untuk menyembunyikan.</p>
 <label for="an_t">Isi pemberitahuan</label><textarea id="an_t" rows="3" maxlength="500" placeholder="Contoh: Layanan X sedang gangguan, estimasi pulih jam 20.00 WIB."></textarea>
@@ -346,11 +352,24 @@ $('#t_del').onclick=async()=>{if(!confirm('Hapus foto tutorial?'))return;
  const d=await post('/api/admin/tutorial',{remove_img:true});
  say($('#t_msg'),d.status,d.status?'Foto tutorial dihapus.':errOf(d));newTut='';$('#t_img').value='';loadTut()};
 
+/* ---------- Logo / foto profil ---------- */
+let newLogo='';
+function showLogo(u){const b=$('#lg_prev');b.textContent='';if(!u)return;
+ const i=document.createElement('img');i.src=u;i.alt='Logo';i.style.cssText='width:96px;height:96px;object-fit:cover;border-radius:22px;border:1px solid var(--line2)';b.append(i)}
+async function loadLogo(){try{const d=await api('/api/admin/logo');if(d.status){showLogo(d.has?'/logo?t='+Date.now():'');$('#lg_del').classList.toggle('hide',!d.has)}}catch{}}
+$('#lg_img').onchange=async e=>{const f=e.target.files[0];if(!f)return;
+ try{newLogo=await img2url(f,320,.9);showLogo(newLogo);say($('#lg_msg'),true,'Foto dipilih. Tap Simpan logo.')}catch(x){newLogo='';say($('#lg_msg'),false,x.message)}};
+$('#logof').onsubmit=async e=>{e.preventDefault();if(!newLogo){say($('#lg_msg'),false,'Pilih foto dulu.');return}
+ const d=await post('/api/admin/logo',{img:newLogo});say($('#lg_msg'),d.status,d.status?'Logo tersimpan.':errOf(d));
+ if(d.status){newLogo='';$('#lg_img').value='';loadLogo()}};
+$('#lg_del').onclick=async()=>{if(!confirm('Hapus logo dan kembali ke huruf A?'))return;
+ const d=await post('/api/admin/logo',{remove:true});say($('#lg_msg'),d.status,d.status?'Logo dihapus.':errOf(d));newLogo='';$('#lg_img').value='';loadLogo()};
+
 $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}catch{}location.href='/login'};
 async function loadAn(){try{const d=await api('/api/admin/announce');if(d.status)$('#an_t').value=d.text||''}catch{}}
 $('#anf').onsubmit=async e=>{e.preventDefault();const d=await post('/api/admin/announce',{text:$('#an_t').value});
  say($('#an_msg'),d.status,d.status?(d.text?'Pemberitahuan tersimpan.':'Pemberitahuan dikosongkan (disembunyikan).'):errOf(d))};
-init();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();loadRevenue();setTimeout(syncAll,2500);
+init();loadLogo();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();loadRevenue();setTimeout(syncAll,2500);
 /* ---------- Notifikasi push (seperti alzDev) ---------- */
 const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 let pushOn=false,lastEv=0;

@@ -576,3 +576,9 @@ label.stp~label.stp{margin-top:12px}
 /* performa: tanpa blur di bilah tab (blur + latar bergerak = lag), dasbor admin tanpa animasi latar */
 .tabs{background:var(--surface);-webkit-backdrop-filter:none;backdrop-filter:none}
 body:has(.adm-top)::after,html:has(.adm-top)::after,body:has(.adm-top) .hero::before{display:none;animation:none}
+
+/* logo / foto profil dari dasbor admin */
+.logo-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:inherit;display:block}
+.logo.has-img{color:transparent;background:var(--surface2)}
+/* di halaman masuk: logo besar */
+main.auth .logo,main:has(#auth:not(.hide)) .logo{width:160px;height:160px;border-radius:32px;font-size:4rem}

@@ -117,7 +117,7 @@ async function rpc(fn, args) {
   if (!r.ok) throw new Error('Supabase error ' + r.status + ' ' + (await r.text()).slice(0, 200));
   return r.json();
 }
-const getSettings = async () => Object.fromEntries((await rest('settings', '?select=key,value&key=not.in.(pay_qris,pay_tutor_img)')).map((x) => [x.key, x.value]));
+const getSettings = async () => Object.fromEntries((await rest('settings', '?select=key,value&key=not.in.(pay_qris,pay_tutor_img,site_logo)')).map((x) => [x.key, x.value]));
 const saveSettings = (obj) =>
   rest('settings', '', { method: 'POST', prefer: 'resolution=merge-duplicates', body: Object.entries(obj).map(([key, value]) => ({ key, value })) });
 
@@ -762,6 +762,27 @@ app.post('/api/admin/wa', adminOnly, run(async (req, res) => {
   return { status: true, wa: v };
 }));
 
+// Logo / foto profil: dipilih dari dasbor admin, tampil di halaman masuk, halaman pembeli, dan dasbor
+const LOGO_RE = /^data:(image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/;
+const getLogo = async () => { const r = await rest('settings', '?select=value&key=eq.site_logo'); return (r && r[0] && r[0].value) || ''; };
+app.get('/logo', async (req, res) => {
+  try {
+    const m = LOGO_RE.exec(await getLogo());
+    if (!m) return res.status(404).end();
+    res.set({ 'Content-Type': m[1], 'Cache-Control': 'public, max-age=60' });
+    res.send(Buffer.from(m[2], 'base64'));
+  } catch (e) { res.status(404).end(); }
+});
+app.get('/api/admin/logo', adminOnly, run(async () => ({ status: true, has: LOGO_RE.test(await getLogo()) })));
+app.post('/api/admin/logo', adminOnly, run(async (req, res) => {
+  const b = req.body || {};
+  if (b.remove) { await rest('settings', '?key=eq.site_logo', { method: 'DELETE' }); return { status: true, has: false }; }
+  const v = String(b.img || '');
+  if (v.length > 400000 || !LOGO_RE.test(v)) { res.status(400); return { status: false, error: 'Gambar tidak valid atau terlalu besar.' }; }
+  await saveSettings({ site_logo: v });
+  return { status: true, has: true };
+}));
+
 const { notify } = require('./push')(app, { rest, adminOnly, run, enc });
 require('./deposit')(app, { rest, rpc, getSettings, saveSettings, adminOnly, buyerOnly, run, enc, notify });
 
@@ -772,7 +793,7 @@ const page = (title, body, script, cls) => `<!doctype html><html lang="id"><head
 <link rel="stylesheet" href="/style.css"></head><body class="${cls || ''}"><main class="${cls || ''}">${body}</main><script>${script}</script></body></html>`;
 
 const LOGIN = page('Alzz Pedia', `
-<div class="brand"><span class="logo">A</span><span>Alzz Pedia</span></div>
+<div class="brand"><span class="logo">A<img class="logo-img" src="/logo" alt="" onerror="this.remove()" onload="this.parentNode.classList.add('has-img')"></span><span>Alzz Pedia</span></div>
 <h1>Masuk</h1><p class="muted">Masuk untuk melihat layanan dan memesan.</p>
 <section class="box" id="auth"><form id="f" autocomplete="on">
 <label for="u">Username</label><input id="u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
