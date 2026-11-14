@@ -207,7 +207,7 @@ app.post('/api/logout', (req, res) => { res.setHeader('Set-Cookie', cookie('sess
 
 app.get('/api/settings', adminOnly, run(async () => {
   const s = await getSettings();
-  return { ok: true, secret_key: mask(s.secret_key), api_key: mask(s.api_key), markup_percent: s.markup_percent || '0' };
+  return { ok: true, secret_key: s.secret_key ? 'Sudah diisi' : '', api_key: s.api_key ? 'Sudah diisi' : '', markup_percent: s.markup_percent || '0' };
 }));
 app.post('/api/settings', adminOnly, run(async (req, res) => {
   const { secret_key, api_key, markup_percent } = req.body || {};
