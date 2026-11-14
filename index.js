@@ -188,6 +188,12 @@ async function allServices() {
   return rows;
 }
 const sellUnit = (cost, m) => Math.ceil(num(cost) * (1 + m / 100)); // harga jual per 1000
+// Harga untung: persen untuk semua layanan (markup_percent), bisa ditimpa per layanan lewat id (svc_markup = {"id": persen})
+const svcMk = (s) => { try { const o = JSON.parse(s.svc_markup || '{}'); return o && typeof o === 'object' && !Array.isArray(o) ? o : {}; } catch (e) { return {}; } };
+const mkFn = (s) => {
+  const g = num(s.markup_percent), o = svcMk(s);
+  return (id) => { const v = o[String(id)]; return v !== undefined && v !== null && v !== '' && isFinite(Number(v)) ? Number(v) : g; };
+};
 
 /* ================= API: admin ================= */
 // Rapikan nilai: buang spasi/baris baru, tanda kutip pembungkus (sering ikut tersalin ke Vercel), dan samakan bentuk karakter unicode
@@ -231,7 +237,7 @@ app.post('/api/settings', adminOnly, run(async (req, res) => {
   if (api_key) data.api_key = String(api_key);
   if (markup_percent !== undefined && String(markup_percent).trim() !== '') {
     const m = Number(markup_percent);
-    if (!(m >= 0 && m <= 1000)) { res.status(400); return { ok: false, error: 'Markup harus antara 0 dan 1000 persen.' }; }
+    if (!(m >= 0 && m <= 1000)) { res.status(400); return { ok: false, error: 'Harga untung harus antara 0 dan 1000 persen.' }; }
     data.markup_percent = String(m);
   }
   if (!Object.keys(data).length) { res.status(400); return { ok: false, error: 'Tidak ada yang diubah.' }; }
@@ -322,9 +328,9 @@ app.post('/api/admin/users/password', adminOnly, run(async (req) => {
 const recIds = (s) => { try { const a = JSON.parse(s.recommended || '[]'); return Array.isArray(a) ? a.map(String) : []; } catch (e) { return []; } };
 app.get('/api/catalog', buyerOnly, run(async () => {
   const st = await getSettings();
-  const m = num(st.markup_percent);
+  const mk = mkFn(st);
   const rows = await allServices();
-  return { status: true, rec: recIds(st), data: rows.map((x) => ({ id: x.id, category: x.category, name: x.name, price: sellUnit(x.price, m), min: num(x.min), max: num(x.max) })) };
+  return { status: true, rec: recIds(st), data: rows.map((x) => ({ id: x.id, category: x.category, name: x.name, price: sellUnit(x.price, mk(x.id)), min: num(x.min), max: num(x.max) })) };
 }));
 
 app.post('/api/buyer/register', run(async (req, res) => {
@@ -413,8 +419,8 @@ app.post('/api/buyer/order', buyerOnly, run(async (req) => {
   if (!sv) return { status: false, error: 'Layanan tidak ditemukan.' };
   const min = num(sv.min), max = num(sv.max);
   if (qty < min || (max && qty > max)) return { status: false, error: 'Jumlah harus antara ' + min + ' dan ' + max + '.' };
-  const m = num((await getSettings()).markup_percent);
-  const total = Math.ceil((qty * sellUnit(sv.price, m)) / 1000);
+  const mk = mkFn(await getSettings());
+  const total = Math.ceil((qty * sellUnit(sv.price, mk(sv.id))) / 1000);
   if (!(total > 0)) return { status: false, error: 'Harga layanan belum valid. Hubungi admin.' };
   const uid = req.buyerId;
   if (Date.now() - provDownAt < 60000) return { status: false, error: 'Penyedia layanan sedang gangguan/maintenance. Saldo Anda tidak dipotong, coba lagi beberapa saat lagi.' };
@@ -492,12 +498,12 @@ app.get('/api/admin/service-sample', adminOnly, run(async () => ({
 })));
 
 /* ---- Admin: layanan rekomendasi ---- */
-const svcRow = (r, m) => ({ id: String(r.id), category: r.category, name: r.name, price: sellUnit(r.price, m) });
+const svcRow = (r, mk) => ({ id: String(r.id), category: r.category, name: r.name, price: sellUnit(r.price, mk(r.id)) });
 app.get('/api/admin/recommended', adminOnly, run(async () => {
   const s = await getSettings();
   const ids = recIds(s);
   if (!ids.length) return { status: true, data: [] };
-  const m = num(s.markup_percent);
+  const m = mkFn(s);
   const rows = await rest('services', '?select=id,category,name,price:data->>price&id=in.(' + ids.map(enc).join(',') + ')');
   const by = Object.fromEntries(rows.map((r) => [String(r.id), r]));
   return { status: true, data: ids.filter((i) => by[i]).map((i) => svcRow(by[i], m)) };
@@ -517,7 +523,7 @@ app.get('/api/admin/services/lookup', adminOnly, run(async (req, res) => {
   if (!valid.length) { res.status(400); return { status: false, error: 'Masukkan ID layanan yang valid (angka/huruf).' }; }
   let rows = [];
   try { rows = await rest('services', '?select=id,category,name,price:data->>price&id=in.(' + valid.map(enc).join(',') + ')'); } catch (e) { rows = []; }
-  const m = num((await getSettings()).markup_percent);
+  const m = mkFn(await getSettings());
   const data = valid.map((i) => rows.find((r) => String(r.id) === i)).filter(Boolean).map((r) => svcRow(r, m));
   const found = new Set(data.map((x) => x.id));
   return { status: true, data, notFound: valid.filter((i) => !found.has(i)) };
@@ -525,21 +531,51 @@ app.get('/api/admin/services/lookup', adminOnly, run(async (req, res) => {
 app.get('/api/admin/services/search', adminOnly, run(async (req) => {
   const q = String(req.query.q || '').replace(/[^\p{L}\p{N} ]/gu, ' ').trim().replace(/\s+/g, '*');
   if (q.length < 2) return { status: true, data: [] };
-  const m = num((await getSettings()).markup_percent);
+  const m = mkFn(await getSettings());
   const rows = await rest('services', '?select=id,category,name,price:data->>price&or=(name.ilike.*' + enc(q) + '*,category.ilike.*' + enc(q) + '*)&order=name.asc&limit=30');
   return { status: true, data: rows.map((r) => svcRow(r, m)) };
+}));
+
+/* ---- Admin: harga untung per layanan (menimpa harga untung semua layanan) ---- */
+app.get('/api/admin/markups', adminOnly, run(async () => {
+  const st = await getSettings();
+  const o = svcMk(st);
+  const ids = Object.keys(o);
+  const g = num(st.markup_percent);
+  if (!ids.length) return { status: true, global: g, data: [] };
+  const rows = await rest('services', '?select=id,category,name,price:data->>price&id=in.(' + ids.map(enc).join(',') + ')');
+  const by = Object.fromEntries(rows.map((x) => [String(x.id), x]));
+  const data = ids.map((id) => { const x = by[id], p = Number(o[id]); return { id, percent: p, name: x ? x.name : 'Layanan tidak ditemukan', price: x ? sellUnit(x.price, p) : 0 }; });
+  return { status: true, global: g, data };
+}));
+app.post('/api/admin/markups', adminOnly, run(async (req, res) => {
+  const b = req.body || {};
+  const o = svcMk(await getSettings());
+  if (b.remove) { delete o[String(b.remove)]; await saveSettings({ svc_markup: JSON.stringify(o) }); return { status: true }; }
+  const valid = [...new Set(String(b.ids || '').split(/[\s,;]+/).filter(Boolean))].slice(0, 50).filter((i) => /^[A-Za-z0-9_-]{1,40}$/.test(i));
+  const p = Number(b.percent);
+  if (!valid.length) { res.status(400); return { status: false, error: 'Masukkan ID layanan yang valid.' }; }
+  if (String(b.percent === undefined ? '' : b.percent).trim() === '' || !(p >= 0 && p <= 1000)) { res.status(400); return { status: false, error: 'Harga untung harus antara 0 dan 1000 persen.' }; }
+  const rows = await rest('services', '?select=id&id=in.(' + valid.map(enc).join(',') + ')');
+  const have = new Set(rows.map((x) => String(x.id)));
+  const saved = valid.filter((i) => have.has(i));
+  if (!saved.length) { res.status(404); return { status: false, error: 'ID layanan tidak ditemukan.' }; }
+  if (Object.keys(o).length + saved.filter((i) => !(i in o)).length > 500) { res.status(400); return { status: false, error: 'Maksimal 500 layanan.' }; }
+  saved.forEach((i) => { o[i] = p; });
+  await saveSettings({ svc_markup: JSON.stringify(o) });
+  return { status: true, saved, notFound: valid.filter((i) => !have.has(i)) };
 }));
 
 // Pendapatan penjualan = jumlah harga semua pesanan pembeli (hari ini & bulan ini dihitung menurut WIB)
 app.get('/api/admin/revenue', adminOnly, run(async () => {
   // "Pendapatan" = UNTUNG: harga jual ke pembeli dikurangi modal di Sprint Pedia (hanya pesanan sukses).
   // Modal dihitung dari harga layanan saat ini x jumlah; jika data layanan/jumlah tidak ada, diperkirakan dari markup.
-  const mk = num((await getSettings()).markup_percent);
+  const mkf = mkFn(await getSettings());
   const cost = {};
   try { (await allServices()).forEach((x) => { cost[String(x.id)] = num(x.price); }); } catch (e) { /* pakai perkiraan markup */ }
   const profitOf = (o) => {
     const p = num(o.price), per = cost[String(o.service_id)], q = num(o.quantity);
-    const modal = per !== undefined && q > 0 ? (per * q) / 1000 : p / (1 + mk / 100);
+    const modal = per !== undefined && q > 0 ? (per * q) / 1000 : p / (1 + mkf(o.service_id) / 100);
     return p - modal;
   };
   const sels = ['price,status,created_at,service_id,quantity', 'price,status,created_at', 'price,status'];

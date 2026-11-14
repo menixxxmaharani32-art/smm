@@ -88,10 +88,16 @@ module.exports = {
 <label for="an_t">Isi pemberitahuan</label><textarea id="an_t" rows="3" maxlength="500" placeholder="Contoh: Layanan X sedang gangguan, estimasi pulih jam 20.00 WIB."></textarea>
 <div class="err" id="an_msg" role="status"></div><button type="submit">Simpan pemberitahuan</button></form>
 
+<form class="box" id="mkf" autocomplete="off"><h2>Harga untung per layanan</h2>
+<label for="mk_ids">ID layanan</label><input id="mk_ids" autocapitalize="none" placeholder="Contoh: 101, 205">
+<label for="mk_pct">Harga untung (%)</label><input id="mk_pct" inputmode="decimal">
+<div class="err" id="mk_msg" role="status"></div>
+<div class="row"><button type="submit">Simpan</button></div>
+<div id="mk_list" style="margin-top:14px"></div></form>
 <form class="box" id="form" autocomplete="off"><h2>Key Sprint Pedia</h2>
 <label for="secret_key">Secret key</label><input id="secret_key" type="password" autocomplete="off">
 <label for="api_key">API key</label><input id="api_key" type="password" autocomplete="off">
-<label for="markup">Markup harga untuk pembeli (%)</label><input id="markup" inputmode="decimal">
+<label for="markup">Harga untung semua layanan (%)</label><input id="markup" inputmode="decimal">
 <div class="err" id="msg" role="status"></div><button type="submit">Simpan pengaturan</button></form>
 <form class="box" id="waf" autocomplete="off"><h2>Kontak bantuan WhatsApp</h2>
 <label for="wa_no">Nomor WhatsApp</label><input id="wa_no" inputmode="tel" placeholder="08xxxxxxxxxx">
@@ -350,6 +356,19 @@ $('#t_del').onclick=async()=>{if(!confirm('Hapus foto tutorial?'))return;
  const d=await post('/api/admin/tutorial',{remove_img:true});
  say($('#t_msg'),d.status,d.status?'Foto tutorial dihapus.':errOf(d));newTut='';$('#t_img').value='';loadTut()};
 
+/* ---------- Harga untung per layanan ---------- */
+async function loadMk(){const box=$('#mk_list');try{const d=await api('/api/admin/markups');if(!d.status)return;box.textContent='';
+ d.data.forEach(x=>{const row=document.createElement('div');row.style.cssText='display:flex;align-items:center;gap:8px;padding:10px 0;border-top:1px solid var(--line)';
+  const tx=document.createElement('div');tx.style.cssText='flex:1;min-width:0';
+  const n=document.createElement('b');n.textContent=x.name;n.style.cssText='display:block;word-break:break-word';
+  const m=document.createElement('small');m.className='muted';m.textContent='ID '+x.id+' | untung '+x.percent+'% | '+rp100(x.price)+' / 100';
+  tx.append(n,m);
+  const del=btn('Hapus','ghost',async()=>{del.disabled=true;try{const r=await post('/api/admin/markups',{remove:x.id});if(r.status)loadMk();else{alert(errOf(r));del.disabled=false}}catch{del.disabled=false}});
+  del.style.cssText='width:auto;padding:8px 12px';row.append(tx,del);box.append(row)})}catch{}}
+$('#mkf').onsubmit=async e=>{e.preventDefault();
+ const d=await post('/api/admin/markups',{ids:$('#mk_ids').value,percent:$('#mk_pct').value});
+ if(d.status){let t='Tersimpan ('+d.saved.length+' layanan).';if(d.notFound&&d.notFound.length)t+=' ID tidak ditemukan: '+d.notFound.join(', ');say($('#mk_msg'),true,t);$('#mk_ids').value='';loadMk()}else say($('#mk_msg'),false,errOf(d))};
+
 /* ---------- Mode maintenance ---------- */
 let mtOn=false;
 function drawMt(){$('#mt_state').textContent=mtOn?'Status: AKTIF':'Status: Nonaktif';$('#mt_state').style.color=mtOn?'var(--danger)':'var(--ok)';$('#mt_btn').textContent=mtOn?'Matikan maintenance':'Aktifkan maintenance'}
@@ -376,7 +395,7 @@ $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}ca
 async function loadAn(){try{const d=await api('/api/admin/announce');if(d.status)$('#an_t').value=d.text||''}catch{}}
 $('#anf').onsubmit=async e=>{e.preventDefault();const d=await post('/api/admin/announce',{text:$('#an_t').value});
  say($('#an_msg'),d.status,d.status?(d.text?'Pemberitahuan tersimpan.':'Pemberitahuan dikosongkan (disembunyikan).'):errOf(d))};
-init();loadMt();loadLogo();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();loadRevenue();setTimeout(syncAll,2500);
+init();loadMt();loadMk();loadLogo();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();loadRevenue();setTimeout(syncAll,2500);
 /* ---------- Notifikasi push (seperti alzDev) ---------- */
 const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 let pushOn=false,lastEv=0;
