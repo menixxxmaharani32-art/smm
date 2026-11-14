@@ -41,8 +41,23 @@ function readTok(req, name) {
 }
 const readAdmin = (req) => { const t = readTok(req, 'session'); return t && t.u ? t.u : null; };
 const readBuyer = (req) => { const t = readTok(req, 'bs'); return t && t.id ? t.id : null; };
+// Mode maintenance: pembeli (masuk, daftar, dasbor) ditutup, admin tetap bisa masuk. Status di-cache 5 detik.
+const MAINT_MSG = 'Sedang ada perbaikan sistem. Silakan coba lagi beberapa saat lagi.';
+let maintCache = { t: 0, on: false, msg: MAINT_MSG };
+async function maintState() {
+  if (Date.now() - maintCache.t < 5000) return maintCache;
+  try {
+    const rows = await rest('settings', '?select=key,value&key=in.(maintenance,maintenance_msg)');
+    const m = {};
+    (rows || []).forEach((x) => { m[x.key] = x.value; });
+    maintCache = { t: Date.now(), on: m.maintenance === '1', msg: m.maintenance_msg || MAINT_MSG };
+  } catch (e) { maintCache.t = Date.now() - 3000; } // gagal baca: pakai nilai terakhir, coba lagi 2 detik
+  return maintCache;
+}
+const maintReply = (res, m) => { res.status(503); return { status: false, maintenance: true, error: m.msg }; };
 const adminOnly = (req, res, next) => (readAdmin(req) ? next() : res.status(401).json({ ok: false, status: false }));
-const buyerOnly = (req, res, next) => {
+const buyerOnly = async (req, res, next) => {
+  try { const m = await maintState(); if (m.on) return res.status(503).json({ status: false, maintenance: true, error: m.msg }); } catch (e) { /* abaikan */ }
   const id = readBuyer(req);
   if (!id) return res.status(401).json({ status: false, error: 'Silakan masuk dulu.' });
   req.buyerId = id;
@@ -313,6 +328,7 @@ app.get('/api/catalog', buyerOnly, run(async () => {
 }));
 
 app.post('/api/buyer/register', run(async (req, res) => {
+  const mt = await maintState(); if (mt.on) return maintReply(res, mt);
   if (limited(req, 'reg')) return { status: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' };
   if (await regBlocked(req)) return { status: false, error: 'Pendaftaran dari jaringan ini sudah mencapai batas (maksimal ' + REG_MAX + ' akun per jam). Coba lagi nanti.' };
   const username = String((req.body || {}).username || '').trim().toLowerCase();
@@ -330,6 +346,7 @@ app.post('/api/buyer/register', run(async (req, res) => {
   }
 }));
 app.post('/api/buyer/login', run(async (req, res) => {
+  const mt = await maintState(); if (mt.on) return maintReply(res, mt);
   if (limited(req, 'blogin')) return { status: false, error: 'Terlalu banyak percobaan. Coba lagi nanti.' };
   const username = String((req.body || {}).username || '').trim().toLowerCase();
   const password = String((req.body || {}).password || '');
@@ -775,6 +792,17 @@ app.post('/api/admin/wa', adminOnly, run(async (req, res) => {
   if (v === null) { res.status(400); return { status: false, error: 'Nomor WhatsApp tidak valid. Contoh: 08123456789.' }; }
   await saveSettings({ wa_number: v });
   return { status: true, wa: v };
+}));
+
+app.get('/api/maintenance', run(async () => { const m = await maintState(); return { status: true, on: m.on, msg: m.msg }; }));
+app.get('/api/admin/maintenance', adminOnly, run(async () => { maintCache.t = 0; const m = await maintState(); return { status: true, on: m.on, msg: m.msg === MAINT_MSG ? '' : m.msg }; }));
+app.post('/api/admin/maintenance', adminOnly, run(async (req) => {
+  const b = req.body || {};
+  const on = !!b.on;
+  const msg = String(b.msg || '').trim().slice(0, 200);
+  await saveSettings({ maintenance: on ? '1' : '0', maintenance_msg: msg });
+  maintCache = { t: Date.now(), on, msg: msg || MAINT_MSG };
+  return { status: true, on };
 }));
 
 // Logo / foto profil: dipilih dari dasbor admin, tampil di halaman masuk, halaman pembeli, dan dasbor

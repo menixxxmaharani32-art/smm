@@ -28,11 +28,10 @@ module.exports = {
 <div class="bars" id="rbars"></div><div id="rlist" style="margin-top:8px"></div>
 <p class="muted" id="rnote" style="margin-top:10px;font-size:.85rem"></p></section>
 <section class="box"><p class="lbl">Saldo Sprint Pedia</p><div class="saldo" id="saldo">…</div><p class="muted" id="provider"></p><button class="ghost" id="refresh" type="button" style="margin-top:14px">Segarkan saldo</button></section>
-<section class="box"><p class="lbl">Pesanan menunggu saldo Sprint Pedia</p><div class="saldo" id="qcount">…</div><p class="muted" style="margin-top:6px;font-size:.85rem">Diproses otomatis setelah saldo Sprint Pedia terisi.</p></section>
+<section class="box"><p class="lbl">Pesanan menunggu saldo Sprint Pedia</p><div class="saldo" id="qcount">…</div></section>
 </div></div>
 
 <div data-p="ord" class="hide"><section class="box"><h2>Riwayat pesanan pembeli</h2>
-<p class="muted" style="margin-top:6px">Status pesanan hanya dibaca dari Sprint Pedia. <b>Menunggu</b> berarti pesanan tertahan karena saldo Sprint Pedia kurang, diproses otomatis setelah saldo terisi.</p>
 <input id="o_q" placeholder="Cari username pembeli" autocapitalize="none" style="margin-top:12px">
 <div class="amts" id="o_f"><button type="button" class="chip" data-s="all" aria-pressed="true">Semua</button><button type="button" class="chip" data-s="queued" aria-pressed="false">Menunggu</button><button type="button" class="chip" data-s="pending" aria-pressed="false">Pending</button><button type="button" class="chip" data-s="processing" aria-pressed="false">Diproses</button><button type="button" class="chip" data-s="success" aria-pressed="false">Sukses</button><button type="button" class="chip" data-s="partial" aria-pressed="false">Sebagian</button><button type="button" class="chip" data-s="error" aria-pressed="false">Error</button></div>
 <div id="o_list" style="margin-top:8px"></div></section></div>
@@ -52,10 +51,8 @@ module.exports = {
 
 <div data-p="rec" class="hide">
 <section class="box"><h2>Layanan rekomendasi<span class="badge" id="reccnt"></span></h2>
-<p class="muted" style="margin-top:6px">Tampil paling atas di halaman pembeli. Maksimal 20 layanan.</p>
 <div id="reclist" style="margin-top:8px"></div><div class="err" id="recmsg" role="status"></div></section>
 <section class="box"><h2>Tambah layanan</h2>
-<p class="muted" style="margin-top:6px">Tambah lewat ID layanan (boleh banyak ID, pisahkan dengan koma).</p>
 <div class="row" style="margin-top:8px"><input id="rec_id" placeholder="Contoh: 1234 atau 1234, 5678" autocomplete="off" autocapitalize="none" spellcheck="false"><button type="button" id="rec_add">Tambah</button></div>
 <p class="muted" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">Atau cari lewat nama:</p>
 <input id="rec_q" placeholder="Cari nama layanan atau kategori" style="margin-top:8px" autocomplete="off">
@@ -63,7 +60,6 @@ module.exports = {
 
 <div data-p="pay" class="hide">
 <form class="box" id="payf" autocomplete="off"><h2>Pengaturan pembayaran</h2>
-<p class="muted" style="margin-top:6px">Ditampilkan ke pembeli di menu Deposit.</p>
 <label for="p_dana">Nomor Dana</label><input id="p_dana" inputmode="tel" placeholder="08xxxxxxxxxx">
 <label for="p_name">Atas nama</label><input id="p_name">
 <label for="p_qris">Foto QRIS</label><input id="p_qris" type="file" accept="image/*">
@@ -71,7 +67,6 @@ module.exports = {
 <button type="button" class="ghost hide" id="p_del">Hapus foto QRIS</button>
 <div class="err" id="p_msg" role="status"></div><button type="submit" style="width:100%">Simpan pembayaran</button></form>
 <form class="box" id="tutf" autocomplete="off"><h2>Tutorial unggah bukti transfer</h2>
-<p class="muted" style="margin-top:6px">Foto dan teks panduan cara mengunggah bukti transfer. Tampil ke pembeli tepat di atas kolom upload bukti di menu Deposit. Kosongkan teks lalu simpan untuk menyembunyikannya.</p>
 <label for="t_text">Teks tutorial</label><textarea id="t_text" rows="5" maxlength="1500" placeholder="Contoh: 1. Setelah transfer, screenshot bukti pembayaran. 2. Tap Pilih foto bukti transfer. 3. Pilih screenshot tadi. 4. Tap Kirim bukti transfer."></textarea>
 <label for="t_img">Foto tutorial</label><input id="t_img" type="file" accept="image/*">
 <div id="t_prev" style="margin-top:12px"></div>
@@ -79,34 +74,33 @@ module.exports = {
 <div class="err" id="t_msg" role="status"></div><button type="submit" style="width:100%">Simpan tutorial</button></form></div>
 
 <div data-p="set" class="hide">
+<form class="box" id="mtf" autocomplete="off"><h2>Mode maintenance</h2>
+<p id="mt_state" style="margin-top:8px;font-weight:700">Status: …</p>
+<label for="mt_msg">Pesan untuk pembeli</label><input id="mt_msg" maxlength="200" placeholder="Opsional">
+<div class="err" id="mt_say" role="status"></div>
+<div class="row"><button type="submit" id="mt_btn">Aktifkan maintenance</button></div></form>
 <form class="box" id="logof" autocomplete="off"><h2>Logo / foto profil</h2>
-<p class="muted" style="margin-top:6px">Menggantikan huruf &ldquo;A&rdquo; di halaman masuk, halaman pembeli, dan dasbor ini.</p>
 <div id="lg_prev" style="margin-top:12px"></div>
 <label for="lg_img">Pilih foto</label><input id="lg_img" type="file" accept="image/*">
 <div class="err" id="lg_msg" role="status"></div>
 <div class="row"><button type="submit">Simpan logo</button><button type="button" class="ghost hide" id="lg_del">Hapus logo</button></div></form>
 <form class="box" id="anf" autocomplete="off"><h2>Pemberitahuan untuk pembeli</h2>
-<p class="muted" style="margin-top:6px">Tampil di bagian atas dasbor pembeli. Kosongkan lalu simpan untuk menyembunyikan.</p>
 <label for="an_t">Isi pemberitahuan</label><textarea id="an_t" rows="3" maxlength="500" placeholder="Contoh: Layanan X sedang gangguan, estimasi pulih jam 20.00 WIB."></textarea>
 <div class="err" id="an_msg" role="status"></div><button type="submit">Simpan pemberitahuan</button></form>
 
 <form class="box" id="form" autocomplete="off"><h2>Key Sprint Pedia</h2>
-<p class="muted" style="margin-top:6px">Kosongkan kolom yang tidak ingin diubah.</p>
 <label for="secret_key">Secret key</label><input id="secret_key" type="password" autocomplete="off">
 <label for="api_key">API key</label><input id="api_key" type="password" autocomplete="off">
 <label for="markup">Markup harga untuk pembeli (%)</label><input id="markup" inputmode="decimal">
 <div class="err" id="msg" role="status"></div><button type="submit">Simpan pengaturan</button></form>
 <form class="box" id="waf" autocomplete="off"><h2>Kontak bantuan WhatsApp</h2>
-<p class="muted" style="margin-top:6px">Tampil di halaman pembeli sebagai &ldquo;Butuh bantuan? Chat Alzz Pedia&rdquo;. Kosongkan lalu simpan untuk menyembunyikan.</p>
 <label for="wa_no">Nomor WhatsApp</label><input id="wa_no" inputmode="tel" placeholder="08xxxxxxxxxx">
 <div class="err" id="wa_msg" role="status"></div><button type="submit">Simpan nomor</button></form>
 <section class="box"><h2>Notifikasi HP</h2>
-<p class="muted" style="margin-top:6px">Dapat pemberitahuan di layar HP saat ada pesanan baru, deposit baru, atau pembeli baru mendaftar, walau browser ditutup. Di iPhone, buka dasbor dari ikon &ldquo;Tambah ke Layar Utama&rdquo; dulu.</p>
 <p id="pn_st" style="margin-top:10px;font-weight:600"></p>
 <div class="row" style="margin-top:10px"><button type="button" id="pn_on">Aktifkan notifikasi</button><button type="button" class="ghost hide" id="pn_test">Tes notifikasi</button></div>
 <div class="err" id="pn_msg" role="status"></div></section>
 <section class="box"><h2>Layanan untuk pembeli</h2>
-<p class="muted" style="margin-top:6px">Impor daftar layanan dari Sprint Pedia agar tampil di halaman pembeli.</p>
 <button type="button" id="loadsv">Impor semua layanan</button><div class="err" id="svmsg" role="status"></div></section></div>`,
   script: `
 /* ---------- Tema terang / gelap (disimpan di perangkat) ---------- */
@@ -146,7 +140,7 @@ async function loadOrd(){const box=$('#o_list');
    const t=document.createElement('p');t.className='tg muted';t.textContent=o.target||'';
    const v=document.createElement('p');v.className='ov';v.textContent=(o.quantity?'Jumlah '+Number(o.quantity).toLocaleString('id-ID')+' | ':'')+rp(o.price);
    r.append(h,m,t,v);
-   if(o.grp==='queued'){const q=document.createElement('p');q.className='muted';q.textContent='Menunggu saldo Sprint Pedia, diproses otomatis setelah saldo terisi.';r.append(q)}
+   
    return r})}catch{}}
 document.querySelectorAll('#o_f .chip').forEach(b=>b.onclick=()=>{ofil=b.dataset.s;document.querySelectorAll('#o_f .chip').forEach(x=>x.setAttribute('aria-pressed',String(x===b)));loadOrd()});
 $('#o_q').addEventListener('input',()=>{clearTimeout(otm);otm=setTimeout(loadOrd,350)});
@@ -203,13 +197,13 @@ async function loadRevenue(){
   big($('#rmonth'),m[0]);$('#rmonthsub').textContent=m[1]+' pesanan · Bulan lalu '+rp(pm[0]);
   big($('#rtoday'),td[0]);$('#rtodaysub').textContent=td[1]+' pesanan'+NL+'Kemarin '+rp(yd[0]);
   big($('#rweek'),w[0]);$('#rweeksub').textContent=w[1]+' pesanan'+NL+'Minggu lalu '+rp(pw[0]);
-  $('#rnote').textContent='Dihitung dari untung bersih (harga jual dikurangi modal Sprint Pedia). Hanya pesanan yang sukses (waktu WIB).';drawRev()}
+  $('#rnote').textContent='';drawRev()}
  catch{}}
 function syncAll(){return post('/api/admin/orders/sync').then(d=>{if(d&&d.status)$('#qcount').textContent=d.queued||0;loadRevenue()}).catch(()=>{})}
 $('#refresh').onclick=()=>{balance();syncAll();loadRevenue()};
 async function init(){const d=await api('/api/settings');
  $('#secret_key').placeholder=d.secret_key||'Belum diisi';$('#api_key').placeholder=d.api_key||'Belum diisi';$('#markup').value=d.markup_percent||'0';
- if(d.secret_key&&d.api_key)balance();else{$('#saldo').textContent='—';$('#provider').textContent='Isi key di tab Pengaturan.'}}
+ if(d.secret_key&&d.api_key)balance();else{$('#saldo').textContent='—';$('#provider').textContent=''}}
 $('#form').onsubmit=async e=>{e.preventDefault();
  const d=await post('/api/settings',{secret_key:$('#secret_key').value.trim(),api_key:$('#api_key').value.trim(),markup_percent:$('#markup').value.trim()});
  say($('#msg'),d.ok,d.ok?'Pengaturan tersimpan.':errOf(d));
@@ -356,6 +350,15 @@ $('#t_del').onclick=async()=>{if(!confirm('Hapus foto tutorial?'))return;
  const d=await post('/api/admin/tutorial',{remove_img:true});
  say($('#t_msg'),d.status,d.status?'Foto tutorial dihapus.':errOf(d));newTut='';$('#t_img').value='';loadTut()};
 
+/* ---------- Mode maintenance ---------- */
+let mtOn=false;
+function drawMt(){$('#mt_state').textContent=mtOn?'Status: AKTIF':'Status: Nonaktif';$('#mt_state').style.color=mtOn?'var(--danger)':'var(--ok)';$('#mt_btn').textContent=mtOn?'Matikan maintenance':'Aktifkan maintenance'}
+async function loadMt(){try{const d=await api('/api/admin/maintenance');if(d.status){mtOn=!!d.on;$('#mt_msg').value=d.msg||'';drawMt()}}catch{}}
+$('#mtf').onsubmit=async e=>{e.preventDefault();const want=!mtOn;
+ if(want&&!confirm('Aktifkan maintenance? Pembeli tidak bisa masuk atau memesan sampai dimatikan. Admin tetap bisa masuk.'))return;
+ const d=await post('/api/admin/maintenance',{on:want,msg:$('#mt_msg').value.trim()});
+ say($('#mt_say'),d.status,d.status?(want?'Maintenance aktif.':'Maintenance dimatikan.'):errOf(d));if(d.status){mtOn=want;drawMt()}};
+
 /* ---------- Logo / foto profil ---------- */
 let newLogo='';
 function showLogo(u){const b=$('#lg_prev');b.textContent='';if(!u)return;
@@ -373,7 +376,7 @@ $('#logout').onclick=async()=>{try{await fetch('/api/logout',{method:'POST'})}ca
 async function loadAn(){try{const d=await api('/api/admin/announce');if(d.status)$('#an_t').value=d.text||''}catch{}}
 $('#anf').onsubmit=async e=>{e.preventDefault();const d=await post('/api/admin/announce',{text:$('#an_t').value});
  say($('#an_msg'),d.status,d.status?(d.text?'Pemberitahuan tersimpan.':'Pemberitahuan dikosongkan (disembunyikan).'):errOf(d))};
-init();loadLogo();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();loadRevenue();setTimeout(syncAll,2500);
+init();loadMt();loadLogo();loadWa();loadAn();loadDeposits();loadUsers();loadPay();loadTut();loadRevenue();setTimeout(syncAll,2500);
 /* ---------- Notifikasi push (seperti alzDev) ---------- */
 const PUSH_OK=('serviceWorker' in navigator)&&('PushManager' in window)&&('Notification' in window);
 let pushOn=false,lastEv=0;

@@ -3,6 +3,7 @@ module.exports = {
   title: 'Alzz Pedia',
   body: `
 <header class="topbar"><div class="brand"><span class="logo">A<img class="logo-img" src="/logo" alt="" onerror="this.remove()" onload="this.parentNode.classList.add('has-img')"></span><span>Alzz Pedia</span></div><button type="button" class="theme-btn" id="themeBtn" aria-label="Ganti tema" title="Ganti tema"><svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg><svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button></header>
+<div id="mt" class="hide" role="alert"><div class="mt-in"><span class="logo mt-logo">A<img class="logo-img" src="/logo" alt="" onerror="this.remove()" onload="this.parentNode.classList.add('has-img')"></span><h1>Sedang maintenance</h1><p class="muted" id="mt_msg"></p><button type="button" id="mt_re">Muat ulang</button></div></div>
 <h1 id="ttl">Masuk</h1>
 <p class="muted" id="sub"></p>
 
@@ -116,6 +117,12 @@ const el=(t,c,x)=>{const e=document.createElement(t);if(c)e.className=c;if(x!=nu
 const fdt=v=>{const d=new Date(v);return isNaN(d)?['','']:d.toLocaleString('sv-SE').split(' ')};
 const rp100=n=>'Rp '+Math.ceil((Number(n)||0)/10).toLocaleString('id-ID',{maximumFractionDigits:0}); // harga per 100, tanpa koma
 const post=(p,b)=>fetch(p,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}).then(r=>r.json());
+/* ---------- Mode maintenance ---------- */
+function showMt(m){$('#mt_msg').textContent=m||'';$('#mt').classList.remove('hide');document.body.classList.add('lock')}
+(function(){const f=window.fetch;window.fetch=function(){const a=arguments;return f.apply(this,a).then(r=>{if(r.status===503&&String(a[0]).indexOf('/api/')===0)r.clone().json().then(d=>{if(d&&d.maintenance)showMt(d.error)}).catch(()=>{});return r})}})();
+fetch('/api/maintenance').then(r=>r.json()).then(d=>{if(d&&d.on)showMt(d.msg)}).catch(()=>{});
+$('#mt_re').onclick=()=>location.reload();
+setInterval(()=>{if(document.hidden||$('#mt').classList.contains('hide'))return;fetch('/api/maintenance').then(r=>r.json()).then(d=>{if(d&&d.status&&!d.on)location.reload()}).catch(()=>{})},20000);
 const note=(el,k,t)=>{el.style.color=k==='ok'?'var(--ok)':k==='info'?'var(--muted)':'';el.textContent=t};
 let SV=[],sel=null,tot=0,me=null,loaded=false,mode='in';
 
